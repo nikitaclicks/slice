@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createInterface } from 'readline';
 import { loadConfig, type AgentConfig } from './config.js';
 import { runAgentWithRetry, type AgentEvent } from './agent.js';
@@ -34,7 +35,13 @@ async function handleSlashCommand(input: string): Promise<string | null> {
 
 async function getInput(): Promise<string> {
   return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true, prompt: `${GREEN}>${RESET} ` });
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    (rl as any).completer = (line: string) => {
+      const cmds = commands.map((c) => c.name);
+      const hits = cmds.filter((c) => c.startsWith(line));
+      return [hits.length ? hits : cmds, line];
+    };
+    rl.setPrompt(GREEN + '> ' + RESET);
     rl.prompt();
     rl.on('line', (line) => { rl.close(); resolve(line); });
   });
@@ -55,9 +62,12 @@ async function main() {
   }
 
   const toolStart = new Map<string, number>();
+  let responseText = '';
 
   const handleEvent = (event: AgentEvent) => {
-    if (event.type === 'tool_call') {
+    if (event.type === 'text') {
+      responseText += event.delta;
+    } else if (event.type === 'tool_call') {
       toolStart.set(event.callId, Date.now());
       console.log(renderToolCall(event.name, event.args));
     } else if (event.type === 'tool_result') {
@@ -67,13 +77,14 @@ async function main() {
   };
 
   while (true) {
+    responseText = '';
     const rawInput = await getInput();
     const input = rawInput.trim();
     if (!input) continue;
 
     if (input.startsWith('/')) {
-      const handled = await handleSlashCommand(input);
-      if (handled === null || handled === '') continue;
+      const result = await handleSlashCommand(input);
+      if (result === null || result === '') continue;
     }
 
     if (sessionCleared) {
@@ -84,12 +95,13 @@ async function main() {
     startLoader();
 
     try {
-      const result = await runAgentWithRetry(config, input, { onEvent: handleEvent });
+      const res = await runAgentWithRetry(config, input, { onEvent: handleEvent });
       stopLoader();
+      if (responseText) console.log(`\n${responseText}\n`);
 
-      const inT = result.usage?.inputTokens ?? 0;
-      const outT = result.usage?.outputTokens ?? 0;
-      console.log(`\n${formatTokens(inT, outT)}\n`);
+      const inT = res?.usage?.inputTokens ?? 0;
+      const outT = res?.usage?.outputTokens ?? 0;
+      console.log(`${formatTokens(inT, outT)}\n`);
     } catch (err: any) {
       stopLoader();
       console.log(`\n${YELLOW}Error: ${err.message}${RESET}\n`);

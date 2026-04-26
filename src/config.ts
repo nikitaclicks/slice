@@ -21,7 +21,7 @@ export interface AgentConfig {
 
 const DEFAULTS: AgentConfig = {
   apiKey: '',
-  model: 'anthropic/claude-opus-4.7',
+  model: 'nvidia/nemotron-3-super-120b-a12b:free',
   systemPrompt: [
     'You are Slice, a coding assistant that helps you save tokens while accomplishing tasks.',
     'You have access to tools for reading, writing, editing, and searching files, and running shell commands.',

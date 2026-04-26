@@ -14,6 +14,7 @@
   "type": "module",
   "dependencies": {
     "@openrouter/agent": "^0.4.0",
+    "dotenv": "^17.4.2",
     "glob": "^13.0.6",
     "zod": "^4.3.6"
   },
