@@ -15,12 +15,14 @@ export const grepTool = tool({
   execute: async ({ pattern, path }) => {
     try {
       const root = path || process.cwd();
-      const regex = new RegExp(pattern, 'g');
       const results: Array<{ file: string; matches: string[] }> = [];
-      
+
+      const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', 'coverage', '__pycache__']);
+
       async function searchDir(dir: string) {
         const entries = await readdir(dir);
         for (const entry of entries.slice(0, 50)) {
+          if (SKIP_DIRS.has(entry)) continue;
           const fullPath = `${dir}/${entry}`;
           const st = await stat(fullPath);
           if (st.isDirectory()) {
@@ -30,7 +32,8 @@ export const grepTool = tool({
             const lines = content.split('\n');
             const matches: string[] = [];
             for (const line of lines) {
-              if (regex.test(line)) matches.push(line.slice(0, 200));
+              // Create a fresh regex per test to avoid stateful 'g' flag issues
+              if (new RegExp(pattern).test(line)) matches.push(line.slice(0, 200));
             }
             if (matches.length) results.push({ file: fullPath, matches: matches.slice(0, 5) });
           }

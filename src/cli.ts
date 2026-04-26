@@ -1,11 +1,12 @@
 import 'dotenv/config';
-import { createInterface } from 'readline';
-import { loadConfig, type AgentConfig } from './config.js';
-import { runAgentWithRetry, type AgentEvent } from './agent.js';
+import { createInterface, type Interface } from 'readline';
+import { loadConfig } from './config.js';
+import { runAgentWithRetry, type AgentEvent, type ChatMessage } from './agent.js';
 import { printBanner } from './banner.js';
 import { startLoader, stopLoader } from './loader.js';
-import { commands, type Command } from './commands.js';
+import { handleSlashCommand, commands, type CommandContext } from './commands.js';
 import { renderToolCall, renderToolResult, formatTokens } from './renderer.js';
+import { detectBg, styledReadLine, borderedReadLine } from './terminal-bg.js';
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
@@ -14,41 +15,16 @@ const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
 const GRAY = '\x1b[90m';
 
-let config: AgentConfig;
-let sessionCleared = false;
-
-async function handleSlashCommand(input: string): Promise<string | null> {
-  for (const cmd of commands) {
-    if (input.startsWith(cmd.name)) {
-      const args = input.slice(cmd.name.length).trim().split(/\s+/).filter(Boolean);
-      const result = await cmd.execute(args, config);
-      if (result === 'session_cleared') {
-        sessionCleared = true;
-        return null;
-      }
-      console.log(result + '\n');
-      return '';
-    }
-  }
-  return input;
-}
-
-async function getInput(): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    (rl as any).completer = (line: string) => {
-      const cmds = commands.map((c) => c.name);
-      const hits = cmds.filter((c) => c.startsWith(line));
-      return [hits.length ? hits : cmds, line];
-    };
-    rl.setPrompt(GREEN + '> ' + RESET);
-    rl.prompt();
-    rl.on('line', (line) => { rl.close(); resolve(line); });
-  });
-}
+// Catch unhandled rejections so they don't silently restart the loop
+process.on('unhandledRejection', (reason) => {
+  process.stdout.write(`\n${YELLOW}[unhandled] ${String(reason)}${RESET}\n`);
+});
+process.on('uncaughtException', (err) => {
+  process.stdout.write(`\n${YELLOW}[uncaught] ${err.message}\n${err.stack ?? ''}${RESET}\n`);
+});
 
 async function main() {
-  config = loadConfig();
+  const config = loadConfig();
 
   if (config.showBanner) {
     printBanner(config.model);
@@ -61,13 +37,71 @@ async function main() {
     console.log(`${line}\n`);
   }
 
+  const cmdNames = commands.map((c) => c.name);
+
+  // If stdin is not a TTY (piped, redirected, or non-interactive terminal),
+  // raw mode input is unavailable — fall back to plain readline.
+  const isTTY = Boolean(process.stdin.isTTY);
+  const effectiveStyle = isTTY ? config.display.inputStyle : 'plain';
+
+  // Detect terminal background once at startup (only needed for block style)
+  const BG_INPUT = effectiveStyle === 'block' ? await detectBg() : '';
+
+  // Only create a readline interface for plain mode.
+  // Block/bordered use raw stdin directly — having an active readline.Interface
+  // alongside raw mode causes stdin conflicts and "return key" flicker.
+  let rl: Interface | null = null;
+  if (effectiveStyle === 'plain') {
+    rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: `${GREEN}> ${RESET}`,
+      completer: (line: string) => {
+        const hits = cmdNames.filter((c) => c.startsWith(line));
+        return [hits.length ? hits : cmdNames, line];
+      },
+    });
+  }
+
+  // For slash commands that need rl.question (e.g. /model), we create a
+  // temporary readline on demand and close it right after.
+  function makeRl(): Interface {
+    return createInterface({ input: process.stdin, output: process.stdout });
+  }
+
+  async function getInput(): Promise<string> {
+    switch (effectiveStyle) {
+      case 'block':
+        return styledReadLine(BG_INPUT, { completions: cmdNames });
+      case 'bordered':
+        return borderedReadLine(undefined, { completions: cmdNames });
+      case 'plain':
+      default:
+        return new Promise((resolve) => {
+          rl!.prompt();
+          rl!.once('line', resolve);
+        });
+    }
+  }
+
+  // Conversation history — enables multi-turn context
+  const messages: ChatMessage[] = [];
+  const totalTokens = { input: 0, output: 0 };
+
+  const cmdCtx: CommandContext = {
+    config,
+    makeRl,
+    messages,
+    totalTokens,
+    resetSession: () => {
+      messages.length = 0;
+    },
+  };
+
   const toolStart = new Map<string, number>();
-  let responseText = '';
 
   const handleEvent = (event: AgentEvent) => {
-    if (event.type === 'text') {
-      responseText += event.delta;
-    } else if (event.type === 'tool_call') {
+    if (event.type === 'tool_call') {
       toolStart.set(event.callId, Date.now());
       console.log(renderToolCall(event.name, event.args));
     } else if (event.type === 'tool_result') {
@@ -77,33 +111,73 @@ async function main() {
   };
 
   while (true) {
-    responseText = '';
-    const rawInput = await getInput();
+    let rawInput: string;
+    try {
+      rawInput = await getInput();
+    } catch (err: any) {
+      process.stdout.write(`\n${YELLOW}[input error] ${err.message}${RESET}\n`);
+      continue;
+    }
     const input = rawInput.trim();
     if (!input) continue;
 
-    if (input.startsWith('/')) {
-      const result = await handleSlashCommand(input);
-      if (result === null || result === '') continue;
+    // Write cwd status line after styled inputs
+    if (config.display.inputStyle !== 'plain') {
+      const cwd = process.cwd().replace(process.env.HOME ?? '', '~');
+      process.stdout.write(`\x1b[K  ${DIM}${cwd}${RESET}\n`);
     }
 
-    if (sessionCleared) {
-      sessionCleared = false;
+    if (input === 'exit' || input === 'quit') {
+      process.exit(0);
+    }
+
+    if (input.startsWith('/')) {
+      await handleSlashCommand(input, cmdCtx);
+      continue;
     }
 
     console.log();
     startLoader();
 
+    // Build agent input: pass full conversation history for multi-turn context
+    messages.push({ role: 'user', content: input });
+    const agentInput: ChatMessage[] | string =
+      messages.length > 1 ? [...messages] : input;
+
+    let responseText = '';
+    const eventHandler = (event: AgentEvent) => {
+      if (event.type === 'text') {
+        responseText += event.delta;
+      } else {
+        handleEvent(event);
+      }
+    };
+
     try {
-      const res = await runAgentWithRetry(config, input, { onEvent: handleEvent });
+      const res = await runAgentWithRetry(config, agentInput, { onEvent: eventHandler });
       stopLoader();
-      if (responseText) console.log(`\n${responseText}\n`);
+
+      if (responseText) {
+        console.log(`\n${responseText}\n`);
+      }
 
       const inT = res?.usage?.inputTokens ?? 0;
       const outT = res?.usage?.outputTokens ?? 0;
       console.log(`${formatTokens(inT, outT)}\n`);
+
+      totalTokens.input += inT;
+      totalTokens.output += outT;
+
+      // Store assistant reply in history
+      if (responseText) {
+        messages.push({ role: 'assistant', content: responseText });
+      }
     } catch (err: any) {
       stopLoader();
+      // Remove the user message we optimistically pushed if the call failed
+      if (messages[messages.length - 1]?.role === 'user') {
+        messages.pop();
+      }
       console.log(`\n${YELLOW}Error: ${err.message}${RESET}\n`);
     }
   }
