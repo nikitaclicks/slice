@@ -193,12 +193,18 @@ function rawInput(
         return;
       }
 
+      if (key.name === 'space') {
+        line += ' ';
+        onDraw(line, false);
+        return;
+      }
+
       // Ignore special keys (arrows, F-keys, etc.)
       if (key.name && key.name.length > 1) return;
 
       // Printable character
       const ch = key.sequence;
-      if (ch && ch >= ' ') {
+      if (ch && ch.charCodeAt(0) >= 32) {
         line += ch;
         onDraw(line, false);
       }
