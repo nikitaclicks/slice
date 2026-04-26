@@ -7,6 +7,8 @@ import { startLoader, stopLoader } from './loader.js';
 import { handleSlashCommand, commands, type CommandContext } from './commands.js';
 import { renderToolCall, renderToolResult, formatTokens } from './renderer.js';
 import { detectBg, styledReadLine, borderedReadLine } from './terminal-bg.js';
+import { ensureRtk } from './modules/rtk-install.js';
+import { loadMcpTools, shutdownMcp } from './modules/mcp-client.js';
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
@@ -36,6 +38,17 @@ async function main() {
     console.log(`  ${DIM}model${RESET}  ${config.model}${RESET}`);
     console.log(`${line}\n`);
   }
+
+  // Token-optimization bootstrap: install rtk binary, spawn context-cutter MCP.
+  // Both are best-effort; failures only print warnings.
+  await ensureRtk();
+  const mcpTools = await loadMcpTools();
+
+  // Ensure MCP subprocess is killed on exit
+  const cleanup = () => { shutdownMcp().catch(() => {}); };
+  process.on('exit', cleanup);
+  process.on('SIGINT', () => { cleanup(); process.exit(0); });
+  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 
   const cmdNames = commands.map((c) => c.name);
 
@@ -154,7 +167,7 @@ async function main() {
     };
 
     try {
-      const res = await runAgentWithRetry(config, agentInput, { onEvent: eventHandler });
+      const res = await runAgentWithRetry(config, agentInput, { onEvent: eventHandler, extraTools: mcpTools });
       stopLoader();
 
       if (responseText) {

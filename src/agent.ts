@@ -15,15 +15,23 @@ export type AgentEvent =
 export async function runAgent(
   config: AgentConfig,
   input: string | ChatMessage[],
-  options?: { onEvent?: (event: AgentEvent) => void; signal?: AbortSignal },
+  options?: {
+    onEvent?: (event: AgentEvent) => void;
+    signal?: AbortSignal;
+    extraTools?: any[];
+  },
 ) {
   const client = new OpenRouter({ apiKey: config.apiKey });
+
+  const allTools = options?.extraTools && options.extraTools.length
+    ? [...tools, ...options.extraTools]
+    : tools;
 
   const result = client.callModel({
     model: config.model,
     instructions: config.systemPrompt.replace('{cwd}', process.cwd()),
     input: input as string | Item[],
-    tools,
+    tools: allTools,
     stopWhen: [stepCountIs(config.maxSteps), maxCost(config.maxCost)],
   });
 
@@ -70,7 +78,12 @@ export async function runAgent(
 export async function runAgentWithRetry(
   config: AgentConfig,
   input: string | ChatMessage[],
-  options?: { onEvent?: (event: AgentEvent) => void; signal?: AbortSignal; maxRetries?: number },
+  options?: {
+    onEvent?: (event: AgentEvent) => void;
+    signal?: AbortSignal;
+    maxRetries?: number;
+    extraTools?: any[];
+  },
 ) {
   for (let attempt = 0, max = options?.maxRetries ?? 3; attempt <= max; attempt++) {
     try { return await runAgent(config, input, options); }

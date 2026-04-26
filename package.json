@@ -13,7 +13,9 @@
   "description": "",
   "type": "module",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@openrouter/agent": "^0.4.0",
+    "@toon-format/toon": "^2.1.0",
     "dotenv": "^17.4.2",
     "glob": "^13.0.6",
     "zod": "^4.3.6"
