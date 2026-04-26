@@ -1,75 +1,111 @@
 # Slice
 
-A token-efficient AI coding assistant built with OpenRouter.
+A token-efficient, terminal-based AI coding assistant built on [OpenRouter](https://openrouter.ai).
+
+Slice keeps context small, reads only what it needs, and responds tersely — designed for developers who want a fast assistant that stays out of the way.
 
 ## Features
 
-- **Token-saving design** — Minimal context, targeted reads, terse responses
-- **File tools** — Read, write, edit, glob, grep, list, shell
-- **Session persistence** — JSONL conversation logs
-- **Context compaction** — Summarizes long conversations
-- **Tool approval** — Gates destructive operations
+- **Block/bordered/plain input styles** — Adaptive terminal background, Tab completion for commands
+- **Multi-turn conversation** — Full history passed to the model for context continuity
+- **File tools** — `file_read`, `file_write`, `file_edit`, `glob`, `grep`, `list_dir`, `shell`
 - **Slash commands** — `/model`, `/new`, `/help`, `/compact`, `/session`, `/export`
+- **Context compaction** — LLM-powered summarization of long conversations via `/compact`
+- **Model switching** — Search and switch OpenRouter models interactively via `/model`
+- **Web search** — Built-in via OpenRouter server tools (no extra setup)
+
+## Requirements
+
+- Node.js 18+
+- An [OpenRouter API key](https://openrouter.ai/settings/keys)
 
 ## Setup
 
 ```bash
-# Install dependencies
+git clone https://github.com/nikitaclicks/slice.git
+cd slice
 npm install
-
-# Copy env example
 cp .env.example .env
 ```
 
-Add your OpenRouter API key:
+Edit `.env` and add your key:
 
-```bash
-# In .env
-OPENROUTER_API_KEY=sk-or-...
 ```
-
-Or set via environment variable:
-
-```bash
-export OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_API_KEY=sk-or-...
 ```
 
 ## Run
 
 ```bash
-npm run dev
+npm start
 ```
 
-## Commands
+## Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `/model` | Switch model |
-| `/new` | Start fresh conversation |
-| `/help` | List commands |
-| `/compact` | Compact context |
-| `/session` | Show session info |
-| `/export` | Export as Markdown |
+| `/model` | Search and switch to a different OpenRouter model |
+| `/new` | Start a fresh conversation (clears history) |
+| `/compact` | Summarize older messages to reduce context size |
+| `/session` | Show current model, message count, and token usage |
+| `/export [file]` | Save conversation as a Markdown file |
+| `/help` | List all commands |
 | `exit` | Quit |
 
-## Config
+Type `/` and press **Tab** to see available commands. Partial matches (e.g. `/mo` → Tab → `/model`) are supported.
 
-Edit `agent.config.json` or use environment variables:
+## Configuration
+
+Create `agent.config.json` in the project root to override defaults:
+
+```json
+{
+  "model": "anthropic/claude-opus-4.7",
+  "maxSteps": 20,
+  "maxCost": 1.0,
+  "sessionDir": ".sessions",
+  "showBanner": true,
+  "display": {
+    "inputStyle": "block",
+    "toolDisplay": "grouped",
+    "reasoning": false
+  }
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `model` | `nvidia/nemotron-3-super-120b-a12b:free` | OpenRouter model ID |
+| `maxSteps` | `20` | Max tool-use steps per turn |
+| `maxCost` | `1.0` | Max USD cost per turn |
+| `sessionDir` | `.sessions` | Directory for session JSONL logs |
+| `showBanner` | `true` | Show ASCII banner at startup |
+| `display.inputStyle` | `block` | `block` / `bordered` / `plain` |
+| `display.toolDisplay` | `grouped` | `grouped` / `emoji` / `minimal` / `hidden` |
+
+You can also use environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `AGENT_MODEL` | Model (default: anthropic/claude-opus-4.7) |
-| `AGENT_MAX_STEPS` | Max steps per turn |
-| `AGENT_MAX_COST` | Max cost per turn |
+| `OPENROUTER_API_KEY` | Your OpenRouter API key (required) |
+| `AGENT_MODEL` | Model override |
+| `AGENT_MAX_STEPS` | Max steps override |
+| `AGENT_MAX_COST` | Max cost override |
 
-## Tools
+## Tools Available to the Agent
 
 | Tool | Description |
 |------|-------------|
-| `file_read` | Read file with offset/limit |
-| `file_write` | Write file |
-| `file_edit` | Search-replace |
-| `glob` | Find files by pattern |
-| `grep` | Search content |
-| `list_dir` | List directory |
-| `shell` | Run command |
+| `file_read` | Read file contents with optional offset/limit |
+| `file_write` | Write or create files |
+| `file_edit` | Search-and-replace edits |
+| `glob` | Find files by glob pattern |
+| `grep` | Search file contents by regex |
+| `list_dir` | List directory contents |
+| `shell` | Run shell commands |
+| `web_search` | Search the web (OpenRouter server tool) |
+| `datetime` | Get current date/time (OpenRouter server tool) |
+
+## License
+
+MIT

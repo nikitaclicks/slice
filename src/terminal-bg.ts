@@ -85,20 +85,22 @@ export async function detectBg(): Promise<string> {
 }
 
 /** Try to complete `line` against `candidates`. Returns new line string on match, or null. */
-function tryComplete(line: string, candidates: string[]): string | null {
+function tryComplete(
+  line: string,
+  candidates: string[],
+): { line: string; suggestions: string[] } | null {
   if (!line) return null;
   const hits = candidates.filter((c) => c.startsWith(line));
-  if (hits.length === 1) return hits[0];
-  if (hits.length > 1) {
-    let prefix = hits[0];
-    for (const h of hits) {
-      let i = 0;
-      while (i < prefix.length && i < h.length && prefix[i] === h[i]) i++;
-      prefix = prefix.slice(0, i);
-    }
-    if (prefix.length > line.length) return prefix;
+  if (!hits.length) return null;
+  if (hits.length === 1) return { line: hits[0], suggestions: [] };
+  // Find common prefix
+  let prefix = hits[0];
+  for (const h of hits) {
+    let i = 0;
+    while (i < prefix.length && i < h.length && prefix[i] === h[i]) i++;
+    prefix = prefix.slice(0, i);
   }
-  return null;
+  return { line: prefix.length > line.length ? prefix : line, suggestions: hits };
 }
 
 const WHITE = '\x1b[97m';
@@ -173,10 +175,20 @@ function rawInput(
       }
 
       if (key.name === 'tab') {
-        const completed = tryComplete(line, opts.completions ?? []);
-        if (completed !== null) {
-          line = completed;
-          onDraw(line, false);
+        const result = tryComplete(line, opts.completions ?? []);
+        if (result !== null) {
+          line = result.line;
+          // Show suggestions on a line below the prompt, then force full redraw
+          if (result.suggestions.length > 1) {
+            const dim = '\x1b[2m';
+            const reset = '\x1b[0m';
+            const hint = result.suggestions.join('  ');
+            process.stdout.write(`\n${dim}  ${hint}${reset}\n`);
+            // Signal full redraw by passing first=true (styles reset their own flag on first=true)
+            onDraw(line, true);
+          } else {
+            onDraw(line, false);
+          }
         }
         return;
       }
