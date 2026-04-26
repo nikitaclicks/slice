@@ -3,6 +3,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { tool } from '@openrouter/agent/tool';
 import { z } from 'zod';
 import { wrapToon } from '../tools/index.js';
+import { existsSync } from 'fs';
 
 type AnyTool = ReturnType<typeof tool>;
 
@@ -68,62 +69,103 @@ async function callMcpTool(name: string, args: Record<string, unknown>): Promise
  *
  * Returns an empty array on failure (never throws).
  */
+/**
+ * Spawn `context-cutter-mcp` (or npx), connect via stdio, and return wrapped tools
+ * that the @openrouter/agent loop can use directly.
+ *
+ * Returns an empty array on failure (never throws).
+ */
 export async function loadMcpTools(opts?: { silent?: boolean }): Promise<AnyTool[]> {
-  try {
-    // Prefer a globally installed binary (faster, no first-run download stall);
-    // fall back to `npx -y context-cutter-mcp`.
-    const useGlobal = await new Promise<boolean>((resolve) => {
+  // Try in order: prefer locally-built cargo binary if present; otherwise
+  // fall back to system binary -> npx. This avoids noisy GLIBC errors when a
+  // globally-installed (npm) binary is incompatible with the host libc.
+  const cargoBinPath = process.env.HOME + '/.cargo/bin/context-cutter-mcp';
+
+  const strategyCargo = async () => {
+    if (!existsSync(cargoBinPath)) return null;
+    return new StdioClientTransport({
+      command: cargoBinPath,
+      args: [],
+      env: { ...process.env, PATH: process.env.HOME + '/.cargo/bin:' + process.env.PATH, RUST_LOG: 'error' } as Record<string, string>,
+    });
+  };
+
+  const strategySystem = async () => {
+    const has = await new Promise<boolean>((resolve) => {
       import('child_process').then(({ exec }) => {
-        exec('command -v context-cutter-mcp', { shell: 'bash' }, (err, stdout) => {
-          resolve(!err && Boolean(stdout.trim()));
+        exec('command -v context-cutter-mcp', { shell: 'bash' }, (err) => {
+          resolve(!err);
         });
       });
     });
+    if (!has) return null;
+    return new StdioClientTransport({
+      command: 'context-cutter-mcp',
+      args: [],
+      env: { ...process.env, RUST_LOG: 'error' } as Record<string, string>,
+    });
+  };
 
-    mcpTransport = new StdioClientTransport({
-      command: useGlobal ? 'context-cutter-mcp' : 'npx',
-      args: useGlobal ? [] : ['-y', 'context-cutter-mcp'],
-      env: { ...process.env } as Record<string, string>,
+  const strategyNpx = async () =>
+    new StdioClientTransport({
+      command: 'npx',
+      args: ['-y', 'context-cutter-mcp'],
+      env: { ...process.env, RUST_LOG: 'error' } as Record<string, string>,
     });
 
-    mcpClient = new Client(
-      { name: 'slice', version: '0.1.0' },
-      { capabilities: {} },
-    );
+  const strategies: Array<() => Promise<StdioClientTransport | null>> = existsSync(cargoBinPath)
+    ? [strategyCargo, strategySystem, strategyNpx]
+    : [strategySystem, strategyNpx, strategyCargo];
 
-    await mcpClient.connect(mcpTransport);
+  for (let i = 0; i < strategies.length; i++) {
+    try {
+      mcpTransport = await strategies[i]();
+      if (!mcpTransport) continue;
 
-    const list = await mcpClient.listTools();
-    const wrappedTools: AnyTool[] = [];
-
-    for (const t of list.tools) {
-      const inputSchema = jsonSchemaToZod(t.inputSchema ?? { type: 'object' });
-      const built = tool({
-        name: t.name,
-        description: t.description ?? `MCP tool: ${t.name}`,
-        inputSchema: inputSchema as any,
-        execute: async (input: any) => callMcpTool(t.name, input ?? {}),
-      });
-      wrappedTools.push(wrapToon(built));
-    }
-
-    if (!opts?.silent) {
-      const names = list.tools.map((t) => t.name).join(', ');
-      process.stdout.write(
-        `\x1b[90m[mcp] context-cutter loaded (${list.tools.length} tools: ${names})\x1b[0m\n`,
+      mcpClient = new Client(
+        { name: 'slice', version: '0.1.0' },
+        { capabilities: {} },
       );
-    }
 
-    return wrappedTools;
-  } catch (err: any) {
-    if (!opts?.silent) {
-      process.stdout.write(
-        `\x1b[33m[mcp] context-cutter failed to start: ${err?.message ?? err}\x1b[0m\n`,
-      );
+      await mcpClient.connect(mcpTransport);
+
+      const list = await mcpClient.listTools();
+      const wrappedTools: AnyTool[] = [];
+
+      for (const t of list.tools) {
+        const inputSchema = jsonSchemaToZod(t.inputSchema ?? { type: 'object' });
+        const built = tool({
+          name: t.name,
+          description: t.description ?? `MCP tool: ${t.name}`,
+          inputSchema: inputSchema as any,
+          execute: async (input: any) => callMcpTool(t.name, input ?? {}),
+        });
+        wrappedTools.push(wrapToon(built));
+      }
+
+      if (!opts?.silent) {
+        const names = list.tools.map((t) => t.name).join(', ');
+        process.stdout.write(
+          `\x1b[90m[mcp] context-cutter loaded (${list.tools.length} tools: ${names})\x1b[0m\n`,
+        );
+      }
+
+      return wrappedTools;
+    } catch (err: any) {
+      const prefix = i === 0 ? '\x1b[90m' : '\x1b[33m';
+      if (!opts?.silent) {
+        process.stdout.write(
+          `${prefix}[mcp] strategy ${i + 1} failed: ${err?.message ?? err}\x1b[0m\n`,
+        );
+      }
+      await shutdownMcp().catch(() => {});
     }
-    await shutdownMcp().catch(() => {});
-    return [];
   }
+
+  if (!opts?.silent) {
+    process.stdout.write('\x1b[33m[mcp] all strategies exhausted, context-cutter unavailable\x1b[0m\n');
+  }
+  return [];
 }
 
 export async function shutdownMcp(): Promise<void> {
