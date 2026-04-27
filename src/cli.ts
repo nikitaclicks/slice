@@ -26,8 +26,15 @@ process.on('uncaughtException', (err) => {
 });
 
 async function main() {
-  const profile = process.argv[2];
+  const args = process.argv.slice(2);
+  const printPrompt = args.includes('--print-system-prompt');
+  const profile = args.find((a) => !a.startsWith('--'));
   const config = loadConfig({}, profile);
+
+  if (printPrompt) {
+    process.stdout.write(config.systemPrompt.replace('{cwd}', process.cwd()) + '\n');
+    process.exit(0);
+  }
 
   if (config.showBanner) {
     printBanner(config.model);
