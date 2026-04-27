@@ -1,7 +1,34 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { load as parseYaml } from 'js-yaml';
 
 export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'omlx';
+
+interface PromptsConfig {
+  default?: string;
+  profiles?: Record<string, string>;
+  providers?: Partial<Record<Provider, {
+    default?: string;
+    models?: Record<string, string>;
+  }>>;
+}
+
+function resolvePromptFromFile(provider: Provider, model: string, profile?: string): string | null {
+  const yamlPath = resolve('prompts.config.yaml');
+  const jsonPath = resolve('prompts.config.json');
+  const promptsPath = existsSync(yamlPath) ? yamlPath : existsSync(jsonPath) ? jsonPath : null;
+  if (!promptsPath) return null;
+  const raw = readFileSync(promptsPath, 'utf-8');
+  const p: PromptsConfig = (promptsPath.endsWith('.yaml') ? parseYaml(raw) : JSON.parse(raw)) as PromptsConfig;
+  const pick = (v: string | undefined): string | null => (v && v.trim() ? v : null);
+  return (
+    (profile ? pick(p.profiles?.[profile]) : null) ??
+    pick(p.providers?.[provider]?.models?.[model]) ??
+    pick(p.providers?.[provider]?.default) ??
+    pick(p.default) ??
+    null
+  );
+}
 
 export interface DisplayConfig {
   toolDisplay: 'emoji' | 'grouped' | 'minimal' | 'hidden';
@@ -64,8 +91,10 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
 
   const configFile = profile ? `agent.${profile}.config.json` : 'agent.config.json';
   const configPath = resolve(configFile);
+  let fileHasSystemPrompt = false;
   if (existsSync(configPath)) {
     const file = JSON.parse(readFileSync(configPath, 'utf-8'));
+    fileHasSystemPrompt = 'systemPrompt' in file;
     if (file.display) {
       config.display = { ...config.display, ...file.display };
     }
@@ -73,6 +102,12 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
   }
 
   const provider = config.provider ?? 'openrouter';
+
+  if (!fileHasSystemPrompt) {
+    const fromFile = resolvePromptFromFile(provider, config.model, profile);
+    if (fromFile) config.systemPrompt = fromFile;
+  }
+
   const envVar = PROVIDER_ENV_VARS[provider];
 
   if (envVar && process.env[envVar]) {

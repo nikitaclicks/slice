@@ -98,6 +98,42 @@ All config lives in `agent.config.json`. Set `provider`, `apiKey`, `baseURL`, an
 }
 ```
 
+## Custom Prompts
+
+System prompts are configured in `prompts.config.yaml` (committed to source control — no secrets here). Prompts are resolved in order from most to least specific:
+
+1. **Profile** — matched by the profile name used to start Slice (e.g. `npm start copilot`)
+2. **Provider + model** — matched by both provider and exact model ID
+3. **Provider default** — matched by provider only
+4. **Global default** — fallback for everything
+
+```yaml
+default: |
+  You are Slice, a coding assistant...
+
+  Current working directory: {cwd}
+
+profiles:
+  copilot: |
+    You are Slice in copilot mode.
+    Always use the ask_question tool when waiting for input...
+
+providers:
+  anthropic:
+    default: |
+      Prompt for all Anthropic models...
+    models:
+      claude-opus-4-7: |
+        Prompt for Opus specifically...
+  openrouter:
+    default: ""
+    models: {}
+```
+
+Use `{cwd}` anywhere in a prompt — it's replaced with the current working directory at runtime.
+
+A `systemPrompt` field in `agent.config.json` takes precedence over everything in `prompts.config.yaml`, useful for per-profile secrets or absolute overrides.
+
 ## Slash Commands
 
 | Command | Description |
