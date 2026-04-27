@@ -1,18 +1,16 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
+import type { Tool } from 'ai';
 import { z } from 'zod';
 import { wrapToon } from '../tools/index.js';
 import { existsSync } from 'fs';
-
-type AnyTool = ReturnType<typeof tool>;
 
 let mcpClient: Client | null = null;
 let mcpTransport: StdioClientTransport | null = null;
 
 /**
  * JSON-Schema -> Zod (best-effort, supports the subset MCP servers usually emit).
- * We only need it because @openrouter/agent's `tool({ inputSchema })` expects a Zod schema.
  */
 function jsonSchemaToZod(schema: any): z.ZodTypeAny {
   if (!schema || typeof schema !== 'object') return z.any();
@@ -49,9 +47,7 @@ async function callMcpTool(name: string, args: Record<string, unknown>): Promise
   if (!mcpClient) return { error: 'MCP client not initialized' };
   try {
     const res = await mcpClient.callTool({ name, arguments: args });
-    // MCP returns { content: [{ type, text|...}], isError? }
     if (res.isError) return { error: 'tool error', content: res.content };
-    // Flatten text content into a single string when possible
     const content = res.content as Array<any> | undefined;
     if (Array.isArray(content)) {
       const allText = content.every((c) => c?.type === 'text');
@@ -64,21 +60,12 @@ async function callMcpTool(name: string, args: Record<string, unknown>): Promise
 }
 
 /**
- * Spawn `npx -y context-cutter-mcp`, connect via stdio, and return wrapped tools
- * that the @openrouter/agent loop can use directly.
+ * Spawn context-cutter-mcp, connect via stdio, and return wrapped tools
+ * as a named-key record for the Vercel AI SDK.
  *
- * Returns an empty array on failure (never throws).
+ * Returns an empty record on failure (never throws).
  */
-/**
- * Spawn `context-cutter-mcp` (or npx), connect via stdio, and return wrapped tools
- * that the @openrouter/agent loop can use directly.
- *
- * Returns an empty array on failure (never throws).
- */
-export async function loadMcpTools(opts?: { silent?: boolean }): Promise<AnyTool[]> {
-  // Try in order: prefer locally-built cargo binary if present; otherwise
-  // fall back to system binary -> npx. This avoids noisy GLIBC errors when a
-  // globally-installed (npm) binary is incompatible with the host libc.
+export async function loadMcpTools(opts?: { silent?: boolean }): Promise<Record<string, Tool>> {
   const cargoBinPath = process.env.HOME + '/.cargo/bin/context-cutter-mcp';
 
   const strategyCargo = async () => {
@@ -130,17 +117,16 @@ export async function loadMcpTools(opts?: { silent?: boolean }): Promise<AnyTool
       await mcpClient.connect(mcpTransport);
 
       const list = await mcpClient.listTools();
-      const wrappedTools: AnyTool[] = [];
+      const wrappedTools: Record<string, Tool> = {};
 
       for (const t of list.tools) {
-        const inputSchema = jsonSchemaToZod(t.inputSchema ?? { type: 'object' });
-        const built = tool({
-          name: t.name,
+        const parameters = jsonSchemaToZod(t.inputSchema ?? { type: 'object' });
+        const toolName = t.name;
+        wrappedTools[toolName] = wrapToon(tool({
           description: t.description ?? `MCP tool: ${t.name}`,
-          inputSchema: inputSchema as any,
-          execute: async (input: any) => callMcpTool(t.name, input ?? {}),
-        });
-        wrappedTools.push(wrapToon(built));
+          parameters: parameters as any,
+          execute: async (input: any) => callMcpTool(toolName, input ?? {}),
+        }));
       }
 
       if (!opts?.silent) {
@@ -165,7 +151,7 @@ export async function loadMcpTools(opts?: { silent?: boolean }): Promise<AnyTool
   if (!opts?.silent) {
     process.stdout.write('\x1b[33m[mcp] all strategies exhausted, context-cutter unavailable\x1b[0m\n');
   }
-  return [];
+  return {};
 }
 
 export async function shutdownMcp(): Promise<void> {

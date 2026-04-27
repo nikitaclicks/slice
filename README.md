@@ -1,6 +1,6 @@
 # Slice
 
-A token-efficient, terminal-based AI coding assistant built on [OpenRouter](https://openrouter.ai).
+A token-efficient, terminal-based AI coding assistant powered by the [Vercel AI SDK](https://sdk.vercel.ai). Run it against OpenRouter, OpenAI, Anthropic, Ollama, or any OpenAI-compatible endpoint.
 
 Slice keeps context small, reads only what it needs, and responds tersely — designed for developers who want a fast assistant that stays out of the way.
 
@@ -11,13 +11,12 @@ Slice keeps context small, reads only what it needs, and responds tersely — de
 - **File tools** — `file_read`, `file_write`, `file_edit`, `glob`, `grep`, `list_dir`, `shell`
 - **Slash commands** — `/model`, `/new`, `/help`, `/compact`, `/session`, `/export`
 - **Context compaction** — LLM-powered summarization of long conversations via `/compact`
-- **Model switching** — Search and switch OpenRouter models interactively via `/model`
-- **Web search** — Built-in via OpenRouter server tools (no extra setup)
+- **Provider-agnostic** — OpenRouter (default), OpenAI, Anthropic, Ollama, or any OpenAI-compatible endpoint
 
 ## Requirements
 
 - Node.js 18+
-- An [OpenRouter API key](https://openrouter.ai/settings/keys)
+- An API key for your chosen provider (or a local Ollama instance — no key needed)
 
 ## Setup
 
@@ -25,14 +24,51 @@ Slice keeps context small, reads only what it needs, and responds tersely — de
 git clone https://github.com/nikitaclicks/slice.git
 cd slice
 npm install
-cp .env.example .env
 ```
 
-Edit `.env` and add your key:
+## Provider Configuration
 
+Slice uses **OpenRouter** by default. Set `provider` in `agent.config.json` to switch.
+
+### OpenRouter (default)
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...
 ```
-OPENROUTER_API_KEY=sk-or-...
+
+```json
+{ "provider": "openrouter", "model": "nvidia/nemotron-3-super-120b-a12b:free" }
 ```
+
+### OpenAI
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+```json
+{ "provider": "openai", "model": "gpt-4o" }
+```
+
+### Anthropic
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+```json
+{ "provider": "anthropic", "model": "claude-sonnet-4-6" }
+```
+
+### Ollama (local, no API key)
+
+Start Ollama locally, then:
+
+```json
+{ "provider": "ollama", "model": "llama3.2" }
+```
+
+Optionally override the endpoint with `"baseURL": "http://localhost:11434"`.
 
 ## Run
 
@@ -60,9 +96,9 @@ Create `agent.config.json` in the project root to override defaults:
 
 ```json
 {
-  "model": "anthropic/claude-opus-4.7",
+  "provider": "openrouter",
+  "model": "nvidia/nemotron-3-super-120b-a12b:free",
   "maxSteps": 20,
-  "maxCost": 1.0,
   "sessionDir": ".sessions",
   "showBanner": true,
   "display": {
@@ -75,22 +111,24 @@ Create `agent.config.json` in the project root to override defaults:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `model` | `nvidia/nemotron-3-super-120b-a12b:free` | OpenRouter model ID |
+| `provider` | `openrouter` | AI provider: `openrouter`, `openai`, `anthropic`, `ollama` |
+| `model` | `nvidia/nemotron-3-super-120b-a12b:free` | Model ID (format depends on provider) |
+| `baseURL` | — | Override the provider's default API endpoint |
 | `maxSteps` | `20` | Max tool-use steps per turn |
-| `maxCost` | `1.0` | Max USD cost per turn |
 | `sessionDir` | `.sessions` | Directory for session JSONL logs |
 | `showBanner` | `true` | Show ASCII banner at startup |
 | `display.inputStyle` | `block` | `block` / `bordered` / `plain` |
 | `display.toolDisplay` | `grouped` | `grouped` / `emoji` / `minimal` / `hidden` |
 
-You can also use environment variables:
+### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `OPENROUTER_API_KEY` | Your OpenRouter API key (required) |
+| `OPENROUTER_API_KEY` | API key for OpenRouter (default provider) |
+| `OPENAI_API_KEY` | API key for OpenAI provider |
+| `ANTHROPIC_API_KEY` | API key for Anthropic provider |
 | `AGENT_MODEL` | Model override |
 | `AGENT_MAX_STEPS` | Max steps override |
-| `AGENT_MAX_COST` | Max cost override |
 
 ## Tools Available to the Agent
 
@@ -103,8 +141,6 @@ You can also use environment variables:
 | `grep` | Search file contents by regex |
 | `list_dir` | List directory contents |
 | `shell` | Run shell commands |
-| `web_search` | Search the web (OpenRouter server tool) |
-| `datetime` | Get current date/time (OpenRouter server tool) |
 
 ## License
 

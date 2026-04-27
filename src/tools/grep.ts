@@ -1,4 +1,4 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { readFile } from 'fs/promises';
 import { glob } from 'glob';
@@ -6,9 +6,8 @@ import { readdir } from 'fs/promises';
 import { stat } from 'fs/promises';
 
 export const grepTool = tool({
-  name: 'grep',
   description: 'Search file contents using a regex pattern',
-  inputSchema: z.object({
+  parameters: z.object({
     pattern: z.string().describe('Regex pattern to search for'),
     path: z.string().optional().describe('Directory or file to search in'),
   }),

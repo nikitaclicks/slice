@@ -1,11 +1,10 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { readFile, stat } from 'fs/promises';
 
 export const fileReadTool = tool({
-  name: 'file_read',
   description: 'Read the contents of a file at the given path',
-  inputSchema: z.object({
+  parameters: z.object({
     path: z.string().describe('Absolute path to the file'),
     offset: z.number().optional().describe('Start reading from this line (1-indexed)'),
     limit: z.number().optional().describe('Maximum number of lines to return'),

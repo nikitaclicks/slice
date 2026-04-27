@@ -1,11 +1,10 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { readFile, writeFile } from 'fs/promises';
 
 export const fileEditTool = tool({
-  name: 'file_edit',
   description: 'Edit a file by replacing a matched string with new content',
-  inputSchema: z.object({
+  parameters: z.object({
     path: z.string().describe('Absolute path to the file'),
     oldString: z.string().describe('Exact string to find and replace'),
     newString: z.string().describe('Replacement string'),

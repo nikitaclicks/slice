@@ -1,12 +1,11 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { glob as globImpl } from 'glob';
 import { cwd } from 'process';
 
 export const globTool = tool({
-  name: 'glob',
   description: 'Find files matching a glob pattern',
-  inputSchema: z.object({
+  parameters: z.object({
     pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/*.js)'),
     path: z.string().optional().describe('Root directory to search from'),
   }),

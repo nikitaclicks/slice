@@ -1,8 +1,9 @@
 import { writeFileSync } from 'fs';
-import { OpenRouter } from '@openrouter/agent';
+import { generateText } from 'ai';
 import type { Interface } from 'readline';
 import type { AgentConfig } from './config.js';
 import type { ChatMessage } from './agent.js';
+import { createModel } from './agent.js';
 
 const DIM = '\x1b[2m';
 const RESET = '\x1b[0m';
@@ -100,18 +101,15 @@ export const commands: Command[] = [
       const before = ctx.messages.length;
       process.stdout.write(`  ${DIM}Compacting…${RESET}`);
       try {
-        const client = new OpenRouter({ apiKey: ctx.config.apiKey });
         const keepRecent = Math.min(10, Math.floor(ctx.messages.length / 2));
         const toSummarize = ctx.messages.slice(0, -keepRecent);
         const toKeep = ctx.messages.slice(-keepRecent);
 
-        const summaryResult = client.callModel({
-          model: ctx.config.model,
-          instructions:
-            'Summarize the following conversation concisely. Preserve key facts, decisions, file paths mentioned, and tool results. Output only the summary.',
-          input: toSummarize.map((m) => `${m.role}: ${m.content}`).join('\n\n'),
+        const { text: summary } = await generateText({
+          model: createModel(ctx.config),
+          system: 'Summarize the following conversation concisely. Preserve key facts, decisions, file paths mentioned, and tool results. Output only the summary.',
+          messages: [{ role: 'user', content: toSummarize.map((m) => `${m.role}: ${m.content}`).join('\n\n') }],
         });
-        const summary = await summaryResult.getText();
 
         ctx.messages.length = 0;
         ctx.messages.push(

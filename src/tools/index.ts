@@ -1,3 +1,4 @@
+import type { Tool } from 'ai';
 import { fileReadTool } from './file-read.js';
 import { fileWriteTool } from './file-write.js';
 import { fileEditTool } from './file-edit.js';
@@ -7,30 +8,26 @@ import { listDirTool } from './list-dir.js';
 import { shellTool } from './shell.js';
 import { toToon } from '../modules/toon-wrap.js';
 
-/**
- * Wrap a tool's execute() so its return is auto-encoded as TOON
- * (token-efficient, lossless JSON encoding).
- */
-function wrapToon<T extends { function: { execute?: (input: any) => any } }>(t: T): T {
-  const orig = t.function.execute;
+function wrapToon<T extends Tool>(t: T): T {
+  const orig = t.execute;
   if (typeof orig === 'function') {
-    t.function.execute = async (input: any) => {
-      const result = await orig(input);
+    (t as any).execute = async (input: any, options: any) => {
+      const result = await orig(input, options);
       return toToon(result);
     };
   }
   return t;
 }
 
-export const tools = [
-  wrapToon(fileReadTool),
-  wrapToon(fileWriteTool),
-  wrapToon(fileEditTool),
-  wrapToon(globTool),
-  wrapToon(grepTool),
-  wrapToon(listDirTool),
+export const tools: Record<string, Tool> = {
+  file_read: wrapToon(fileReadTool),
+  file_write: wrapToon(fileWriteTool),
+  file_edit: wrapToon(fileEditTool),
+  glob: wrapToon(globTool),
+  grep: wrapToon(grepTool),
+  list_dir: wrapToon(listDirTool),
   // shellTool already TOON-encodes its own return so it can include rtk metadata.
-  shellTool,
-];
+  shell: shellTool,
+};
 
 export { wrapToon };

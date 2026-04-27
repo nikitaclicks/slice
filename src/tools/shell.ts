@@ -1,4 +1,4 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -8,9 +8,8 @@ import { toToon } from '../modules/toon-wrap.js';
 const execAsync = promisify(exec);
 
 export const shellTool = tool({
-  name: 'shell',
   description: 'Execute a shell command and return its output',
-  inputSchema: z.object({
+  parameters: z.object({
     command: z.string().describe('Command to execute'),
     timeout: z.number().optional().describe('Timeout in milliseconds'),
   }),

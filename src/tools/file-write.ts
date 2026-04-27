@@ -1,12 +1,11 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { writeFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
 
 export const fileWriteTool = tool({
-  name: 'file_write',
   description: 'Write content to a file, creating directories if needed',
-  inputSchema: z.object({
+  parameters: z.object({
     path: z.string().describe('Absolute path to the file'),
     content: z.string().describe('Content to write'),
   }),

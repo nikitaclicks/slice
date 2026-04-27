@@ -1,6 +1,8 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
+export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure';
+
 export interface DisplayConfig {
   toolDisplay: 'emoji' | 'grouped' | 'minimal' | 'hidden';
   reasoning: boolean;
@@ -10,8 +12,11 @@ export interface DisplayConfig {
 export interface AgentConfig {
   apiKey: string;
   model: string;
+  provider: Provider;
+  baseURL?: string;
   systemPrompt: string;
   maxSteps: number;
+  /** @deprecated No equivalent in Vercel AI SDK; kept for config file compatibility only. */
   maxCost: number;
   sessionDir: string;
   showBanner: boolean;
@@ -22,6 +27,7 @@ export interface AgentConfig {
 const DEFAULTS: AgentConfig = {
   apiKey: '',
   model: 'nvidia/nemotron-3-super-120b-a12b:free',
+  provider: 'openrouter',
   systemPrompt: [
     'You are Slice, a coding assistant that helps you save tokens while accomplishing tasks.',
     'You have access to tools for reading, writing, editing, and searching files, and running shell commands.',
@@ -44,6 +50,14 @@ const DEFAULTS: AgentConfig = {
   slashCommands: true,
 };
 
+const PROVIDER_ENV_VARS: Record<Provider, string | null> = {
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  azure: 'AZURE_OPENAI_API_KEY',
+  ollama: null,
+};
+
 export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
   let config = { ...DEFAULTS };
 
@@ -56,7 +70,15 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     config = { ...config, ...file, display: config.display };
   }
 
-  if (process.env.OPENROUTER_API_KEY) config.apiKey = process.env.OPENROUTER_API_KEY;
+  const provider = config.provider ?? 'openrouter';
+  const envVar = PROVIDER_ENV_VARS[provider];
+
+  if (envVar && process.env[envVar]) {
+    config.apiKey = process.env[envVar]!;
+  } else if (provider === 'openrouter' && process.env.OPENAI_API_KEY) {
+    config.apiKey = process.env.OPENAI_API_KEY;
+  }
+
   if (process.env.AGENT_MODEL) config.model = process.env.AGENT_MODEL;
   if (process.env.AGENT_MAX_STEPS) config.maxSteps = Number(process.env.AGENT_MAX_STEPS);
   if (process.env.AGENT_MAX_COST) config.maxCost = Number(process.env.AGENT_MAX_COST);
@@ -65,6 +87,11 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
     config.display = { ...config.display, ...overrides.display };
   }
   config = { ...config, ...overrides, display: config.display };
-  if (!config.apiKey) throw new Error('OPENROUTER_API_KEY is required.');
+
+  if (provider !== 'ollama' && !config.apiKey) {
+    const varName = PROVIDER_ENV_VARS[provider] ?? 'API key';
+    throw new Error(`${varName} is required for provider "${provider}".`);
+  }
+
   return config;
 }

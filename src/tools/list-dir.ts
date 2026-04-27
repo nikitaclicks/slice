@@ -1,11 +1,10 @@
-import { tool } from '@openrouter/agent/tool';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { readdir, stat } from 'fs/promises';
 
 export const listDirTool = tool({
-  name: 'list_dir',
   description: 'List directory contents with file type indicators',
-  inputSchema: z.object({
+  parameters: z.object({
     path: z.string().describe('Absolute path to directory'),
   }),
   execute: async ({ path }) => {
