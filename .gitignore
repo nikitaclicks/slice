@@ -5,3 +5,5 @@ dist/
 .env
 .DS_Store
 *.log
+agent.config.json
+agent.*.config.json

@@ -26,61 +26,82 @@ cd slice
 npm install
 ```
 
-## Provider Configuration
-
-Slice uses **OpenRouter** by default. Set `provider` in `agent.config.json` to switch.
-
-### OpenRouter (default)
-
-```bash
-export OPENROUTER_API_KEY=sk-or-...
-```
+Create `agent.config.json` in the project root (it's gitignored):
 
 ```json
-{ "provider": "openrouter", "model": "nvidia/nemotron-3-super-120b-a12b:free" }
+{
+  "provider": "openrouter",
+  "baseURL": "https://openrouter.ai/api/v1",
+  "apiKey": "sk-or-...",
+  "model": "minimax/minimax-m2.5:free"
+}
+```
+
+Then run:
+
+```bash
+npm start
+```
+
+## Provider Configuration
+
+All config lives in `agent.config.json`. Set `provider`, `apiKey`, `baseURL`, and `model` together.
+
+### OpenRouter
+
+```json
+{
+  "provider": "openrouter",
+  "baseURL": "https://openrouter.ai/api/v1",
+  "apiKey": "sk-or-...",
+  "model": "minimax/minimax-m2.5:free"
+}
 ```
 
 ### OpenAI
 
-```bash
-export OPENAI_API_KEY=sk-...
-```
-
 ```json
-{ "provider": "openai", "model": "gpt-4o" }
+{
+  "provider": "openai",
+  "apiKey": "sk-...",
+  "model": "gpt-4o"
+}
 ```
 
 ### Anthropic
 
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+```json
+{
+  "provider": "anthropic",
+  "apiKey": "sk-ant-...",
+  "model": "claude-sonnet-4-6"
+}
 ```
+
+### Any OpenAI-compatible endpoint (local or proxy)
 
 ```json
-{ "provider": "anthropic", "model": "claude-sonnet-4-6" }
+{
+  "provider": "openai",
+  "baseURL": "http://localhost:1234/v1",
+  "apiKey": "your-key",
+  "model": "your-model-name"
+}
 ```
 
-### Ollama (local, no API key)
-
-Start Ollama locally, then:
+### Ollama (no API key needed)
 
 ```json
-{ "provider": "ollama", "model": "llama3.2" }
-```
-
-Optionally override the endpoint with `"baseURL": "http://localhost:11434"`.
-
-## Run
-
-```bash
-npm start
+{
+  "provider": "ollama",
+  "model": "llama3.2"
+}
 ```
 
 ## Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `/model` | Search and switch to a different OpenRouter model |
 | `/new` | Start a fresh conversation (clears history) |
 | `/compact` | Summarize older messages to reduce context size |
 | `/session` | Show current model, message count, and token usage |
@@ -88,47 +109,21 @@ npm start
 | `/help` | List all commands |
 | `exit` | Quit |
 
-Type `/` and press **Tab** to see available commands. Partial matches (e.g. `/mo` → Tab → `/model`) are supported.
+Type `/` and press **Tab** to see available commands.
 
-## Configuration
-
-Create `agent.config.json` in the project root to override defaults:
-
-```json
-{
-  "provider": "openrouter",
-  "model": "nvidia/nemotron-3-super-120b-a12b:free",
-  "maxSteps": 20,
-  "sessionDir": ".sessions",
-  "showBanner": true,
-  "display": {
-    "inputStyle": "block",
-    "toolDisplay": "grouped",
-    "reasoning": false
-  }
-}
-```
+## Configuration Reference
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `provider` | `openrouter` | AI provider: `openrouter`, `openai`, `anthropic`, `ollama` |
-| `model` | `nvidia/nemotron-3-super-120b-a12b:free` | Model ID (format depends on provider) |
+| `apiKey` | — | API key for the selected provider |
 | `baseURL` | — | Override the provider's default API endpoint |
+| `model` | `nvidia/nemotron-3-super-120b-a12b:free` | Model ID (format depends on provider) |
 | `maxSteps` | `20` | Max tool-use steps per turn |
 | `sessionDir` | `.sessions` | Directory for session JSONL logs |
 | `showBanner` | `true` | Show ASCII banner at startup |
 | `display.inputStyle` | `block` | `block` / `bordered` / `plain` |
 | `display.toolDisplay` | `grouped` | `grouped` / `emoji` / `minimal` / `hidden` |
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `OPENROUTER_API_KEY` | API key for OpenRouter (default provider) |
-| `OPENAI_API_KEY` | API key for OpenAI provider |
-| `ANTHROPIC_API_KEY` | API key for Anthropic provider |
-| `AGENT_MODEL` | Model override |
-| `AGENT_MAX_STEPS` | Max steps override |
 
 ## Tools Available to the Agent
 

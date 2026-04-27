@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
-export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure';
+export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'omlx';
 
 export interface DisplayConfig {
   toolDisplay: 'emoji' | 'grouped' | 'minimal' | 'hidden';
@@ -56,12 +56,14 @@ const PROVIDER_ENV_VARS: Record<Provider, string | null> = {
   openrouter: 'OPENROUTER_API_KEY',
   azure: 'AZURE_OPENAI_API_KEY',
   ollama: null,
+  omlx: null,
 };
 
-export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
+export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: string): AgentConfig {
   let config = { ...DEFAULTS };
 
-  const configPath = resolve('agent.config.json');
+  const configFile = profile ? `agent.${profile}.config.json` : 'agent.config.json';
+  const configPath = resolve(configFile);
   if (existsSync(configPath)) {
     const file = JSON.parse(readFileSync(configPath, 'utf-8'));
     if (file.display) {
@@ -88,7 +90,7 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
   }
   config = { ...config, ...overrides, display: config.display };
 
-  if (provider !== 'ollama' && !config.apiKey) {
+  if (provider !== 'ollama' && provider !== 'omlx' && !config.apiKey) {
     const varName = PROVIDER_ENV_VARS[provider] ?? 'API key';
     throw new Error(`${varName} is required for provider "${provider}".`);
   }

@@ -26,7 +26,8 @@ process.on('uncaughtException', (err) => {
 });
 
 async function main() {
-  const config = loadConfig();
+  const profile = process.argv[2];
+  const config = loadConfig({}, profile);
 
   if (config.showBanner) {
     printBanner(config.model);

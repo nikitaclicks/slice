@@ -29,6 +29,13 @@ export function createModel(config: AgentConfig): LanguageModelV1 {
       const client = createOllama({ baseURL: baseURL ?? 'http://localhost:11434' });
       return client(model);
     }
+    case 'omlx': {
+      const client = createOpenAI({
+        apiKey: apiKey || '42-Pupa',
+        baseURL: baseURL ?? 'http://127.0.0.1:8000/v1',
+      });
+      return client(model);
+    }
     case 'azure': {
       throw new Error('Azure provider requires @ai-sdk/azure. Install it and use createAzure directly.');
     }
