@@ -28,6 +28,7 @@ export function renderToolResult(name: string, ms: number, truncated?: boolean):
 }
 
 export function formatTokens(inTokens: number, outTokens: number): string {
+  if (!inTokens && !outTokens) return `${GRAY}  -- in · -- out${RESET}`;
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
   return `${GRAY}  ${fmt(inTokens)} in · ${fmt(outTokens)} out${RESET}`;
 }

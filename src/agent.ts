@@ -76,13 +76,25 @@ export async function runAgent(
     abortSignal: options?.signal,
   });
 
+  let streamInputTokens = 0;
+  let streamOutputTokens = 0;
+
+  const toInt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
   for await (const part of result.fullStream) {
     if (options?.signal?.aborted) break;
-    if (!options?.onEvent) continue;
 
     // Cast to any: ToolResultUnion resolves to `never` with generic Record<string, Tool>,
     // causing false TypeScript narrowing errors despite correct runtime behavior.
     const p = part as any;
+
+    if (p.type === 'finish' && p.usage) {
+      streamInputTokens += toInt(p.usage.promptTokens ?? p.usage.inputTokens);
+      streamOutputTokens += toInt(p.usage.completionTokens ?? p.usage.outputTokens);
+    }
+
+    if (!options?.onEvent) continue;
+
     if (p.type === 'text-delta') {
       options.onEvent({ type: 'text', delta: p.textDelta });
     } else if (p.type === 'tool-call') {
@@ -108,11 +120,13 @@ export async function runAgent(
 
   const text = await result.text;
   const usage = await result.usage;
+  const sdkInputTokens = toInt((usage as any)?.promptTokens ?? (usage as any)?.inputTokens);
+  const sdkOutputTokens = toInt((usage as any)?.completionTokens ?? (usage as any)?.outputTokens);
   return {
     text,
     usage: {
-      inputTokens: (usage as any).promptTokens ?? (usage as any).inputTokens ?? 0,
-      outputTokens: (usage as any).completionTokens ?? (usage as any).outputTokens ?? 0,
+      inputTokens: sdkInputTokens || streamInputTokens,
+      outputTokens: sdkOutputTokens || streamOutputTokens,
     },
   };
 }

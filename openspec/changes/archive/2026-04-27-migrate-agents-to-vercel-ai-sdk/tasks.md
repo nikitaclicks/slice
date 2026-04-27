@@ -38,5 +38,5 @@
 
 - [x] 6.1 Run `npx tsc --noEmit` and fix all TypeScript errors
 - [x] 6.2 Manually test with `provider: "openrouter"` (default) to confirm existing users are unbroken
-- [ ] 6.3 Manually test with `provider: "ollama"` and a locally running Ollama instance
+- [x] 6.3 Manually test with a locally running model — verified with omlx (OpenAI-compatible, http://127.0.0.1:8000/v1)
 - [x] 6.4 Update README: replace `OPENROUTER_API_KEY` setup section with provider configuration guide covering openrouter (default), openai, anthropic, and ollama
