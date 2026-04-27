@@ -43,6 +43,33 @@ Then run:
 npm start
 ```
 
+## Profiles
+
+Profiles let you maintain multiple named configurations — one per provider, model, or use case — and switch between them at startup.
+
+Create `agent.<profile>.config.json` (gitignored) for each profile:
+
+```bash
+agent.config.json          # default — npm start
+agent.work.config.json     # npm start work
+agent.local.config.json    # npm start local
+```
+
+```bash
+npm start              # loads agent.config.json
+npm start work         # loads agent.work.config.json
+npm start local        # loads agent.local.config.json
+```
+
+Each profile config is a full `agent.config.json` — set whichever fields differ and the rest fall back to defaults. Profiles also activate matching entries in `prompts.config.yaml` (see [Custom Prompts](#custom-prompts)).
+
+### Inspect the active system prompt
+
+```bash
+npm start -- --print-system-prompt
+npm start -- work --print-system-prompt
+```
+
 ## Provider Configuration
 
 All config lives in `agent.config.json`. Set `provider`, `apiKey`, `baseURL`, and `model` together.
