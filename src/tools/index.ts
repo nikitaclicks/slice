@@ -6,6 +6,7 @@ import { globTool } from './glob.js';
 import { grepTool } from './grep.js';
 import { listDirTool } from './list-dir.js';
 import { shellTool } from './shell.js';
+import { askQuestionTool } from './ask-question.js';
 import { toToon } from '../modules/toon-wrap.js';
 
 function wrapToon<T extends Tool>(t: T): T {
@@ -28,6 +29,7 @@ export const tools: Record<string, Tool> = {
   list_dir: wrapToon(listDirTool),
   // shellTool already TOON-encodes its own return so it can include rtk metadata.
   shell: shellTool,
+  ask_question: askQuestionTool,
 };
 
 export { wrapToon };
