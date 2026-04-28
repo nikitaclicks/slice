@@ -1,6 +1,6 @@
 # Slice
 
-A token-efficient, terminal-based AI coding assistant powered by the [Vercel AI SDK](https://sdk.vercel.ai). Run it against OpenRouter, OpenAI, Anthropic, Ollama, or any OpenAI-compatible endpoint.
+A token-efficient, terminal-based AI coding assistant powered by the [Vercel AI SDK](https://sdk.vercel.ai). Run it against OpenRouter, OpenAI, Anthropic, GitHub Copilot, Ollama, or any OpenAI-compatible endpoint.
 
 Slice keeps context small, reads only what it needs, and responds tersely — designed for developers who want a fast assistant that stays out of the way.
 
@@ -28,16 +28,25 @@ cd slice
 npm install
 ```
 
-Create `agent.config.json` in the project root (it's gitignored):
+Config is split into a public file (committed) and a local file (gitignored). Create both in the project root:
 
+**`agent.config.json`** — committed, no secrets:
 ```json
 {
   "provider": "openrouter",
   "baseURL": "https://openrouter.ai/api/v1",
-  "apiKey": "sk-or-...",
   "model": "minimax/minimax-m2.5:free"
 }
 ```
+
+**`agent.config.local.json`** — gitignored, API key only:
+```json
+{
+  "apiKey": "sk-or-..."
+}
+```
+
+The local file is merged on top of the public one at startup. Any field can go in either file — `local.json` always wins.
 
 Then run:
 
@@ -49,12 +58,13 @@ npm start
 
 Profiles let you maintain multiple named configurations — one per provider, model, or use case — and switch between them at startup.
 
-Create `agent.<profile>.config.json` (gitignored) for each profile:
+Each profile follows the same public/local split:
 
 ```bash
-agent.config.json          # default — npm start
-agent.work.config.json     # npm start work
-agent.local.config.json    # npm start local
+agent.config.json              # default public config — committed
+agent.config.local.json        # default secrets — gitignored
+agent.work.config.json         # work profile public config — committed
+agent.work.config.local.json   # work profile secrets — gitignored
 ```
 
 ```bash
@@ -74,38 +84,71 @@ npm start -- work --print-system-prompt
 
 ## Provider Configuration
 
-All config lives in `agent.config.json`. Set `provider`, `apiKey`, `baseURL`, and `model` together.
+Set `provider`, `baseURL`, and `model` in `agent.config.json` (committed). Put `apiKey` in `agent.config.local.json` (gitignored).
 
 ### OpenRouter
 
+`agent.config.json`:
 ```json
 {
   "provider": "openrouter",
   "baseURL": "https://openrouter.ai/api/v1",
-  "apiKey": "sk-or-...",
   "model": "minimax/minimax-m2.5:free"
 }
+```
+`agent.config.local.json`:
+```json
+{ "apiKey": "sk-or-..." }
 ```
 
 ### OpenAI
 
+`agent.config.json`:
 ```json
 {
   "provider": "openai",
-  "apiKey": "sk-...",
   "model": "gpt-4o"
 }
+```
+`agent.config.local.json`:
+```json
+{ "apiKey": "sk-..." }
 ```
 
 ### Anthropic
 
+`agent.config.json`:
 ```json
 {
   "provider": "anthropic",
-  "apiKey": "sk-ant-...",
   "model": "claude-sonnet-4-6"
 }
 ```
+`agent.config.local.json`:
+```json
+{ "apiKey": "sk-ant-..." }
+```
+
+### GitHub Copilot (GitHub Models)
+
+`agent.copilot.config.json`:
+```json
+{
+  "provider": "openai",
+  "baseURL": "https://models.inference.ai.azure.com",
+  "model": "gpt-4o"
+}
+```
+`agent.copilot.config.local.json`:
+```json
+{ "apiKey": "ghp_..." }
+```
+
+```bash
+npm start copilot
+```
+
+Get a token at **github.com → Settings → Developer settings → Personal access tokens**. Free tier includes generous model access. Model IDs: `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `o4-mini`.
 
 ### Any OpenAI-compatible endpoint (local or proxy)
 
@@ -180,7 +223,7 @@ Type `/` and press **Tab** to see available commands.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `provider` | `openrouter` | AI provider: `openrouter`, `openai`, `anthropic`, `ollama` |
+| `provider` | `openrouter` | AI provider: `openrouter`, `openai`, `anthropic`, `ollama`, `omlx` |
 | `apiKey` | — | API key for the selected provider |
 | `baseURL` | — | Override the provider's default API endpoint |
 | `model` | `nvidia/nemotron-3-super-120b-a12b:free` | Model ID (format depends on provider) |

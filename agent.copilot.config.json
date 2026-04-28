@@ -1,0 +1,6 @@
+{
+  "provider": "openai",
+  "baseURL": "https://models.inference.ai.azure.com",
+  "model": "gpt-5-mini",
+  "reasoningEffort": "high"
+}

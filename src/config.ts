@@ -111,6 +111,17 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
     config = { ...config, ...file, display: config.display };
   }
 
+  const localFile = profile ? `agent.${profile}.config.local.json` : 'agent.config.local.json';
+  const localPath = resolve(localFile);
+  if (existsSync(localPath)) {
+    const local = JSON.parse(readFileSync(localPath, 'utf-8'));
+    if ('systemPrompt' in local) fileHasSystemPrompt = true;
+    if (local.display) {
+      config.display = { ...config.display, ...local.display };
+    }
+    config = { ...config, ...local, display: config.display };
+  }
+
   const provider = config.provider ?? 'openrouter';
 
   if (!fileHasSystemPrompt) {
