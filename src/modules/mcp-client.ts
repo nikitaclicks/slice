@@ -40,6 +40,7 @@ export async function loadMcpTools(opts?: { silent?: boolean }): Promise<Record<
       command: cargoBinPath,
       args: [],
       env: { ...process.env, PATH: process.env.HOME + '/.cargo/bin:' + process.env.PATH, RUST_LOG: 'error' } as Record<string, string>,
+      stderr: 'ignore',
     });
   };
 
@@ -56,6 +57,7 @@ export async function loadMcpTools(opts?: { silent?: boolean }): Promise<Record<
       command: 'context-cutter-mcp',
       args: [],
       env: { ...process.env, RUST_LOG: 'error' } as Record<string, string>,
+      stderr: 'ignore',
     });
   };
 
@@ -64,6 +66,7 @@ export async function loadMcpTools(opts?: { silent?: boolean }): Promise<Record<
       command: 'npx',
       args: ['-y', 'context-cutter-mcp'],
       env: { ...process.env, RUST_LOG: 'error' } as Record<string, string>,
+      stderr: 'ignore',
     });
 
   const strategies: Array<() => Promise<StdioClientTransport | null>> = existsSync(cargoBinPath)

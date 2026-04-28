@@ -196,10 +196,18 @@ async function main() {
 
     for (let attempt = 0; attempt <= 1; attempt++) {
       let responseText = '';
+      const flushText = () => {
+        if (responseText) {
+          stopLoader();
+          console.log(`\n${responseText}\n`);
+          responseText = '';
+        }
+      };
       const eventHandler = (event: AgentEvent) => {
         if (event.type === 'text') {
           responseText += event.delta;
         } else {
+          if (event.type === 'tool_call') flushText();
           handleEvent(event);
         }
       };
