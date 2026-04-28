@@ -1,8 +1,6 @@
 import { streamText, generateText } from 'ai';
 import type { Tool, LanguageModelV1 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createOllama } from 'ollama-ai-provider';
 import type { AgentConfig } from './config.js';
 import { tools, makeStrict } from './tools/index.js';
 
@@ -15,39 +13,13 @@ export type AgentEvent =
   | { type: 'reasoning'; delta: string };
 
 export function createModel(config: AgentConfig): LanguageModelV1 {
-  const { provider, model, apiKey, baseURL, headers, reasoningEffort } = config;
-  switch (provider) {
-    case 'openai': {
-      const client = createOpenAI({ apiKey, ...(baseURL && { baseURL }), ...(headers && { headers }) });
-      return client(model, { ...(reasoningEffort && { reasoningEffort }) });
-    }
-    case 'anthropic': {
-      const client = createAnthropic({ apiKey, ...(baseURL && { baseURL }) });
-      return client(model);
-    }
-    case 'ollama': {
-      const client = createOllama({ baseURL: baseURL ?? 'http://localhost:11434' });
-      return client(model);
-    }
-    case 'omlx': {
-      const client = createOpenAI({
-        apiKey: apiKey || '42-Pupa',
-        baseURL: baseURL ?? 'http://127.0.0.1:8000/v1',
-      });
-      return client(model);
-    }
-    case 'azure': {
-      throw new Error('Azure provider requires @ai-sdk/azure. Install it and use createAzure directly.');
-    }
-    case 'openrouter':
-    default: {
-      const client = createOpenAI({
-        apiKey,
-        baseURL: baseURL ?? 'https://openrouter.ai/api/v1',
-      });
-      return client(model);
-    }
-  }
+  const { apiKey, baseURL, headers, reasoningEffort, model } = config;
+  const client = createOpenAI({
+    apiKey: apiKey || 'no-key',
+    ...(baseURL && { baseURL }),
+    ...(headers && { headers }),
+  });
+  return client(model, { ...(reasoningEffort && { reasoningEffort }) });
 }
 
 export async function runAgent(

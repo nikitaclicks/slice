@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { load as parseYaml } from 'js-yaml';
 
-export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'azure' | 'omlx';
+export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'omlx';
 
 interface PromptsConfig {
   default?: string;
@@ -85,9 +85,15 @@ const PROVIDER_ENV_VARS: Record<Provider, string | null> = {
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
   openrouter: 'OPENROUTER_API_KEY',
-  azure: 'AZURE_OPENAI_API_KEY',
   ollama: null,
   omlx: null,
+};
+
+const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<Provider, string>> = {
+  anthropic: 'https://api.anthropic.com/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+  ollama: 'http://localhost:11434/v1',
+  omlx: 'http://127.0.0.1:8000/v1',
 };
 
 export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: string): AgentConfig {
@@ -130,8 +136,14 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
   }
   config = { ...config, ...overrides, display: config.display };
 
-  if (provider !== 'ollama' && provider !== 'omlx' && !config.apiKey) {
-    const varName = PROVIDER_ENV_VARS[provider] ?? 'API key';
+  if (!config.baseURL) {
+    const defaultBase = PROVIDER_DEFAULT_BASE_URLS[provider as Provider];
+    if (defaultBase) config.baseURL = defaultBase;
+  }
+
+  const requiresApiKey = PROVIDER_ENV_VARS[provider as Provider] !== null;
+  if (requiresApiKey && !config.apiKey) {
+    const varName = PROVIDER_ENV_VARS[provider as Provider] ?? 'API key';
     throw new Error(`${varName} is required for provider "${provider}".`);
   }
 
