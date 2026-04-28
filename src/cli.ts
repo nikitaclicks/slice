@@ -9,6 +9,7 @@ import { renderToolCall, renderToolResult, formatTokens } from './renderer.js';
 import { detectBg, styledReadLine, borderedReadLine } from './terminal-bg.js';
 import { ensureRtk } from './modules/rtk-install.js';
 import { loadMcpTools, shutdownMcp } from './modules/mcp-client.js';
+import { selfHeal, getGitDiff } from './modules/self-heal.js';
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
@@ -16,6 +17,21 @@ const DIM = '\x1b[2m';
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
 const GRAY = '\x1b[90m';
+
+async function promptYesNo(question: string, makeRl: () => Interface): Promise<boolean> {
+  return new Promise((resolve) => {
+    const r = makeRl();
+    r.question(question, (answer) => {
+      r.close();
+      resolve(answer.trim().toLowerCase() === 'y');
+    });
+  });
+}
+
+function isContextTooLargeError(err: any): boolean {
+  const msg = String(err?.message ?? '').toLowerCase();
+  return msg.includes('too large') || msg.includes('context length') || msg.includes('max size') || msg.includes('context_length_exceeded');
+}
 
 // Catch unhandled rejections so they don't silently restart the loop
 process.on('unhandledRejection', (reason) => {
@@ -160,46 +176,79 @@ async function main() {
     console.log();
     startLoader();
 
-    // Build agent input: pass full conversation history for multi-turn context
     messages.push({ role: 'user', content: input });
-    const agentInput: ChatMessage[] | string =
-      messages.length > 1 ? [...messages] : input;
 
-    let responseText = '';
-    const eventHandler = (event: AgentEvent) => {
-      if (event.type === 'text') {
-        responseText += event.delta;
-      } else {
-        handleEvent(event);
+    for (let attempt = 0; attempt <= 1; attempt++) {
+      let responseText = '';
+      const eventHandler = (event: AgentEvent) => {
+        if (event.type === 'text') {
+          responseText += event.delta;
+        } else {
+          handleEvent(event);
+        }
+      };
+
+      const agentInput: ChatMessage[] | string = messages.length > 1 ? [...messages] : input;
+
+      try {
+        const res = await runAgentWithRetry(config, agentInput, { onEvent: eventHandler, extraTools: mcpTools });
+        stopLoader();
+
+        if (responseText) {
+          console.log(`\n${responseText}\n`);
+        }
+
+        const inT = res?.usage?.inputTokens ?? 0;
+        const outT = res?.usage?.outputTokens ?? 0;
+        console.log(`${formatTokens(inT, outT)}\n`);
+
+        totalTokens.input += inT;
+        totalTokens.output += outT;
+
+        if (responseText) {
+          messages.push({ role: 'assistant', content: responseText });
+        }
+        break;
+      } catch (err: any) {
+        stopLoader();
+        if (messages[messages.length - 1]?.role === 'user') messages.pop();
+
+        if (attempt === 0 && isContextTooLargeError(err) && messages.length >= 2) {
+          const trimTo = Math.max(2, Math.floor(messages.length / 2));
+          messages.splice(0, messages.length - trimTo);
+          messages.push({ role: 'user', content: input });
+          process.stdout.write(`${YELLOW}Context too large — trimmed history, retrying…${RESET}\n\n`);
+          startLoader();
+          continue;
+        }
+
+        const hint = isContextTooLargeError(err) ? ` Use /clear to reset or switch to a model with a larger context window.` : '';
+        console.log(`\n${YELLOW}Error: ${err.message}${hint}${RESET}\n`);
+
+        const shouldHeal = await promptYesNo('Self-heal? [y/N] ', makeRl);
+        if (shouldHeal) {
+          startLoader();
+          try {
+            const healText = await selfHeal(err, input, config, mcpTools, handleEvent);
+            stopLoader();
+            if (healText) console.log(`\n${healText}\n`);
+            const diff = getGitDiff();
+            if (diff) {
+              console.log(diff);
+              const apply = await promptYesNo('Apply these changes? [y/N] ', makeRl);
+              if (apply) {
+                console.log(`${GREEN}Changes saved — restart Slice to apply.${RESET}\n`);
+              }
+            } else {
+              console.log(`${DIM}No changes made.${RESET}\n`);
+            }
+          } catch (healErr: any) {
+            stopLoader();
+            console.log(`${YELLOW}Self-heal failed: ${healErr.message}${RESET}\n`);
+          }
+        }
+        break;
       }
-    };
-
-    try {
-      const res = await runAgentWithRetry(config, agentInput, { onEvent: eventHandler, extraTools: mcpTools });
-      stopLoader();
-
-      if (responseText) {
-        console.log(`\n${responseText}\n`);
-      }
-
-      const inT = res?.usage?.inputTokens ?? 0;
-      const outT = res?.usage?.outputTokens ?? 0;
-      console.log(`${formatTokens(inT, outT)}\n`);
-
-      totalTokens.input += inT;
-      totalTokens.output += outT;
-
-      // Store assistant reply in history
-      if (responseText) {
-        messages.push({ role: 'assistant', content: responseText });
-      }
-    } catch (err: any) {
-      stopLoader();
-      // Remove the user message we optimistically pushed if the call failed
-      if (messages[messages.length - 1]?.role === 'user') {
-        messages.pop();
-      }
-      console.log(`\n${YELLOW}Error: ${err.message}${RESET}\n`);
     }
   }
 }
