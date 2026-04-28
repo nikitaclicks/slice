@@ -41,11 +41,6 @@ export async function runAgent(
     Object.entries(options?.extraTools ?? {}).map(([k, t]) => [k, makeStrict(t)])
   );
   const allTools: Record<string, Tool> = { ...tools, ...extraTools };
-  if (process.env.SLICE_DEBUG_SCHEMA) {
-    for (const [name, t] of Object.entries(allTools)) {
-      process.stderr.write(`[schema:${name}] ${JSON.stringify((t as any).parameters?.jsonSchema ?? (t as any).parameters)}\n`);
-    }
-  }
 
   const signals: AbortSignal[] = [];
   if (options?.signal) signals.push(options.signal);

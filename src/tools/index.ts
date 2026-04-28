@@ -54,10 +54,20 @@ function cleanSchema(node: any, isContainer = false): any {
   if (!isContainer && !out.type && !out.anyOf && !out.oneOf && !out.allOf && !out.$ref && !out.properties && !out.enum) {
     out.type = 'string';
   }
-  // GitHub Models requires additionalProperties:false on every object schema.
-  // Non-boolean values (e.g. {type:"string"} from z.record()) are also forced to false.
-  if (out.type === 'object' || out.properties) {
+  // GitHub Models strict mode requires every object schema to declare properties/required.
+  // Object schemas without properties get an empty declaration so they are schema-valid.
+  if (out.type === 'object' && !out.properties) {
+    out.properties = {};
+    out.required = [];
     out.additionalProperties = false;
+  }
+  // Sync required with properties — must run after anyOf collapse, which may
+  // have overwritten out.properties and left required pointing to stale keys.
+  if (out.properties) {
+    out.required = Object.keys(out.properties);
+    out.additionalProperties = false;
+  } else {
+    delete out.required;
   }
   return out;
 }
