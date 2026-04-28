@@ -33,7 +33,7 @@ function ask(rl: Interface, prompt: string): Promise<string> {
 export const commands: Command[] = [
   {
     name: '/model',
-    description: 'Switch the active model (search OpenRouter)',
+    description: 'Switch the active model (fetches from configured provider)',
     execute: async (_args, ctx) => {
       console.log(`  ${DIM}Current:${RESET} ${CYAN}${ctx.config.model}${RESET}`);
       const rl = ctx.makeRl();
@@ -41,12 +41,24 @@ export const commands: Command[] = [
         const query = await ask(rl, `  ${DIM}Search models:${RESET} `);
         if (!query.trim()) { rl.close(); return; }
         process.stdout.write(`  ${DIM}Fetching…${RESET}`);
-        const res = await fetch('https://openrouter.ai/api/v1/models');
-        const { data } = (await res.json()) as { data: { id: string; name: string }[] };
+
+        const base = ctx.config.baseURL ?? 'https://openrouter.ai/api/v1';
+        const url = base.replace(/\/$/, '') + '/models';
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${ctx.config.apiKey}`,
+            ...ctx.config.headers,
+          },
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const json = await res.json() as any;
+        // OpenAI-compatible: { data: [...] } or flat array
+        const list: { id: string; name?: string }[] = Array.isArray(json) ? json : (json.data ?? []);
+
         process.stdout.write('\r\x1b[K');
         const q = query.toLowerCase();
-        const matches = data
-          .filter((m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q))
+        const matches = list
+          .filter((m) => m.id.toLowerCase().includes(q) || m.name?.toLowerCase().includes(q))
           .slice(0, 15);
         if (!matches.length) {
           console.log(`  ${DIM}No models matching "${query}".${RESET}`);

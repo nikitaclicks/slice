@@ -1,47 +1,13 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { tool } from 'ai';
+import { tool, jsonSchema } from 'ai';
 import type { Tool } from 'ai';
-import { z } from 'zod';
 import { wrapToon } from '../tools/index.js';
 import { existsSync } from 'fs';
 
 let mcpClient: Client | null = null;
 let mcpTransport: StdioClientTransport | null = null;
 
-/**
- * JSON-Schema -> Zod (best-effort, supports the subset MCP servers usually emit).
- */
-function jsonSchemaToZod(schema: any): z.ZodTypeAny {
-  if (!schema || typeof schema !== 'object') return z.any();
-  const t = schema.type;
-
-  if (t === 'string') {
-    let s: z.ZodTypeAny = z.string();
-    if (schema.enum) s = z.enum(schema.enum as [string, ...string[]]);
-    return schema.description ? s.describe(schema.description) : s;
-  }
-  if (t === 'number' || t === 'integer') {
-    return schema.description ? z.number().describe(schema.description) : z.number();
-  }
-  if (t === 'boolean') {
-    return schema.description ? z.boolean().describe(schema.description) : z.boolean();
-  }
-  if (t === 'array') {
-    return z.array(jsonSchemaToZod(schema.items ?? {}));
-  }
-  if (t === 'object' || schema.properties) {
-    const shape: Record<string, z.ZodTypeAny> = {};
-    const required = new Set<string>(schema.required ?? []);
-    for (const [k, v] of Object.entries<any>(schema.properties ?? {})) {
-      let zs = jsonSchemaToZod(v);
-      if (!required.has(k)) zs = zs.optional();
-      shape[k] = zs;
-    }
-    return z.object(shape).passthrough();
-  }
-  return z.any();
-}
 
 async function callMcpTool(name: string, args: Record<string, unknown>): Promise<unknown> {
   if (!mcpClient) return { error: 'MCP client not initialized' };
@@ -120,11 +86,11 @@ export async function loadMcpTools(opts?: { silent?: boolean }): Promise<Record<
       const wrappedTools: Record<string, Tool> = {};
 
       for (const t of list.tools) {
-        const parameters = jsonSchemaToZod(t.inputSchema ?? { type: 'object' });
         const toolName = t.name;
+        const inputSchema = t.inputSchema ?? { type: 'object', properties: {}, required: [] };
         wrappedTools[toolName] = wrapToon(tool({
           description: t.description ?? `MCP tool: ${t.name}`,
-          parameters: parameters as any,
+          parameters: jsonSchema(inputSchema as any),
           execute: async (input: any) => callMcpTool(toolName, input ?? {}),
         }));
       }

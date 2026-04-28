@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOllama } from 'ollama-ai-provider';
 import type { AgentConfig } from './config.js';
-import { tools } from './tools/index.js';
+import { tools, makeStrict } from './tools/index.js';
 
 export type ChatMessage = { role: 'user' | 'assistant' | 'system'; content: string };
 
@@ -15,11 +15,11 @@ export type AgentEvent =
   | { type: 'reasoning'; delta: string };
 
 export function createModel(config: AgentConfig): LanguageModelV1 {
-  const { provider, model, apiKey, baseURL } = config;
+  const { provider, model, apiKey, baseURL, headers, reasoningEffort } = config;
   switch (provider) {
     case 'openai': {
-      const client = createOpenAI({ apiKey, ...(baseURL && { baseURL }) });
-      return client(model);
+      const client = createOpenAI({ apiKey, ...(baseURL && { baseURL }), ...(headers && { headers }) });
+      return client(model, { ...(reasoningEffort && { reasoningEffort }) });
     }
     case 'anthropic': {
       const client = createAnthropic({ apiKey, ...(baseURL && { baseURL }) });
@@ -65,7 +65,20 @@ export async function runAgent(
     ? [{ role: 'user', content: input }]
     : input;
 
-  const allTools: Record<string, Tool> = { ...tools, ...(options?.extraTools ?? {}) };
+  const extraTools = Object.fromEntries(
+    Object.entries(options?.extraTools ?? {}).map(([k, t]) => [k, makeStrict(t)])
+  );
+  const allTools: Record<string, Tool> = { ...tools, ...extraTools };
+  if (process.env.SLICE_DEBUG_SCHEMA) {
+    for (const [name, t] of Object.entries(allTools)) {
+      process.stderr.write(`[schema:${name}] ${JSON.stringify((t as any).parameters?.jsonSchema ?? (t as any).parameters)}\n`);
+    }
+  }
+
+  const signals: AbortSignal[] = [];
+  if (options?.signal) signals.push(options.signal);
+  if (config.timeout) signals.push(AbortSignal.timeout(config.timeout));
+  const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
 
   const result = streamText({
     model,
@@ -73,7 +86,7 @@ export async function runAgent(
     messages,
     tools: allTools,
     maxSteps: config.maxSteps,
-    abortSignal: options?.signal,
+    ...(signal && { abortSignal: signal }),
   });
 
   let streamInputTokens = 0;
@@ -95,7 +108,9 @@ export async function runAgent(
 
     if (!options?.onEvent) continue;
 
-    if (p.type === 'text-delta') {
+    if (p.type === 'error') {
+      throw new Error(String(p.error?.message ?? p.error ?? 'Stream error'));
+    } else if (p.type === 'text-delta') {
       options.onEvent({ type: 'text', delta: p.textDelta });
     } else if (p.type === 'tool-call') {
       options.onEvent({

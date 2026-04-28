@@ -6,16 +6,16 @@ export const fileReadTool = tool({
   description: 'Read the contents of a file at the given path',
   parameters: z.object({
     path: z.string().describe('Absolute path to the file'),
-    offset: z.number().optional().describe('Start reading from this line (1-indexed)'),
-    limit: z.number().optional().describe('Maximum number of lines to return'),
+    offset: z.number().describe('Start reading from this line (1-indexed), or 0 for beginning'),
+    limit: z.number().describe('Maximum number of lines to return, or 0 for all'),
   }),
   execute: async ({ path, offset, limit }) => {
     try {
       const content = await readFile(path, 'utf-8');
       const lines = content.split('\n');
 
-      const start = offset ? offset - 1 : 0;
-      const end = limit ? start + limit : lines.length;
+      const start = offset > 0 ? offset - 1 : 0;
+      const end = limit > 0 ? start + limit : lines.length;
       const slice = lines.slice(start, end);
 
       return {

@@ -41,10 +41,14 @@ export interface AgentConfig {
   model: string;
   provider: Provider;
   baseURL?: string;
+  headers?: Record<string, string>;
+  reasoningEffort?: 'low' | 'medium' | 'high';
   systemPrompt: string;
   maxSteps: number;
   /** @deprecated No equivalent in Vercel AI SDK; kept for config file compatibility only. */
   maxCost: number;
+  /** Total agent run timeout in milliseconds. Omit for no timeout. */
+  timeout?: number;
   sessionDir: string;
   showBanner: boolean;
   display: DisplayConfig;
@@ -119,6 +123,7 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
   if (process.env.AGENT_MODEL) config.model = process.env.AGENT_MODEL;
   if (process.env.AGENT_MAX_STEPS) config.maxSteps = Number(process.env.AGENT_MAX_STEPS);
   if (process.env.AGENT_MAX_COST) config.maxCost = Number(process.env.AGENT_MAX_COST);
+  if (process.env.AGENT_TIMEOUT) config.timeout = Number(process.env.AGENT_TIMEOUT);
 
   if (overrides.display) {
     config.display = { ...config.display, ...overrides.display };

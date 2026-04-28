@@ -11,9 +11,10 @@ export const shellTool = tool({
   description: 'Execute a shell command and return its output',
   parameters: z.object({
     command: z.string().describe('Command to execute'),
-    timeout: z.number().optional().describe('Timeout in milliseconds'),
+    timeout: z.number().describe('Timeout in milliseconds, or 0 for default (30000ms)'),
   }),
-  execute: async ({ command, timeout = 30000 }) => {
+  execute: async ({ command, timeout }) => {
+    timeout = timeout > 0 ? timeout : 30000;
     const rewrite = rewriteWithRtk(command);
     const finalCommand = rewrite ? rewrite.rewritten : command;
 

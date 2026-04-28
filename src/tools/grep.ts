@@ -9,11 +9,11 @@ export const grepTool = tool({
   description: 'Search file contents using a regex pattern',
   parameters: z.object({
     pattern: z.string().describe('Regex pattern to search for'),
-    path: z.string().optional().describe('Directory or file to search in'),
+    path: z.string().describe('Directory or file to search in, or empty string for cwd'),
   }),
   execute: async ({ pattern, path }) => {
     try {
-      const root = path || process.cwd();
+      const root = path && path.trim() ? path : process.cwd();
       const results: Array<{ file: string; matches: string[] }> = [];
 
       const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.next', 'coverage', '__pycache__']);

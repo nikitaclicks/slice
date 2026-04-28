@@ -7,11 +7,11 @@ export const globTool = tool({
   description: 'Find files matching a glob pattern',
   parameters: z.object({
     pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/*.js)'),
-    path: z.string().optional().describe('Root directory to search from'),
+    path: z.string().describe('Root directory to search from, or empty string for cwd'),
   }),
   execute: async ({ pattern, path }) => {
     try {
-      const root = path || cwd();
+      const root = path && path.trim() ? path : cwd();
       const files = await globImpl(pattern, { cwd: root, absolute: true });
       return { files: files.sort() };
     } catch (err: any) {

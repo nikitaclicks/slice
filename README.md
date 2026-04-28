@@ -4,6 +4,8 @@ A token-efficient, terminal-based AI coding assistant powered by the [Vercel AI 
 
 Slice keeps context small, reads only what it needs, and responds tersely — designed for developers who want a fast assistant that stays out of the way.
 
+![Preview](assets/image.png)
+
 ## Features
 
 - **Block/bordered/plain input styles** — Adaptive terminal background, Tab completion for commands
@@ -183,6 +185,7 @@ Type `/` and press **Tab** to see available commands.
 | `baseURL` | — | Override the provider's default API endpoint |
 | `model` | `nvidia/nemotron-3-super-120b-a12b:free` | Model ID (format depends on provider) |
 | `maxSteps` | `20` | Max tool-use steps per turn |
+| `timeout` | none | Agent run timeout in milliseconds. Omit (default) for no limit. Example: `3600000` for 1 hour |
 | `sessionDir` | `.sessions` | Directory for session JSONL logs |
 | `showBanner` | `true` | Show ASCII banner at startup |
 | `display.inputStyle` | `block` | `block` / `bordered` / `plain` |
