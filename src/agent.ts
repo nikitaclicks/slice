@@ -13,7 +13,28 @@ export type AgentEvent =
   | { type: 'reasoning'; delta: string };
 
 export function createModel(config: AgentConfig): LanguageModelV1 {
-  const { apiKey, baseURL, headers, reasoningEffort, model } = config;
+  const { apiKey, baseURL, headers, reasoningEffort, model, provider } = config;
+
+  if (provider === 'copilot') {
+    const token = apiKey;
+    const copilotFetch: typeof globalThis.fetch = (input, init) => {
+      const h = new Headers(init?.headers as HeadersInit | undefined);
+      h.delete('authorization');
+      h.delete('x-api-key');
+      h.set('Authorization', `Bearer ${token}`);
+      h.set('User-Agent', 'slice/1.0.0');
+      h.set('Openai-Intent', 'conversation-edits');
+      h.set('x-initiator', 'agent');
+      return globalThis.fetch(input, { ...init, headers: h });
+    };
+    const client = createOpenAI({
+      apiKey: 'unused',
+      baseURL: baseURL || 'https://api.githubcopilot.com',
+      fetch: copilotFetch,
+    });
+    return client(model, { ...(reasoningEffort && { reasoningEffort }) });
+  }
+
   const client = createOpenAI({
     apiKey: apiKey || 'no-key',
     ...(baseURL && { baseURL }),
@@ -128,7 +149,10 @@ export async function runAgentWithRetry(
     catch (err: any) {
       const s = err?.statusCode ?? err?.status ?? err?.statusCode;
       if (!(s === 429 || (s >= 500 && s < 600)) || attempt === max) throw err;
-      await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 30000)));
+      const retryAfterMatch = String(err?.message ?? '').match(/wait\s+(\d+)\s+second/i);
+      const retryAfterMs = retryAfterMatch ? parseInt(retryAfterMatch[1], 10) * 1000 : 0;
+      const backoffMs = Math.min(1000 * 2 ** attempt, 30000);
+      await new Promise((r) => setTimeout(r, Math.max(retryAfterMs, backoffMs)));
     }
   }
   throw new Error('Unreachable');

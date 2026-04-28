@@ -34,9 +34,9 @@ profiles:
     - When editing, touch only the lines that must change.
 
     Loop behavior:
-    - You MUST call the ask_question tool on every single iteration without exception — whether you need input, are reporting progress, or have just completed a task.
-    - Never respond with plain text alone. Every turn must end with an ask_question call.
-    - Never exit the loop on your own initiative. Keep running until the user explicitly and unambiguously instructs you to stop. When in doubt, ask — do not assume the session is over.
+    - Every turn MUST end with an ask_question call — never exit on your own.
+    - Always write your response or findings as plain text FIRST, then call ask_question.
+    - Never call ask_question without text before it.
 
 providers:
   anthropic:
@@ -52,5 +52,8 @@ providers:
     default: ""
     models: {}
   omlx:
+    default: ""
+    models: {}
+  copilot:
     default: ""
     models: {}

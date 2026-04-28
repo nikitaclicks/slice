@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { load as parseYaml } from 'js-yaml';
 
-export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'omlx';
+export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'omlx' | 'copilot';
 
 interface PromptsConfig {
   default?: string;
@@ -53,6 +53,7 @@ export interface AgentConfig {
   showBanner: boolean;
   display: DisplayConfig;
   slashCommands: boolean;
+  copilotApi?: boolean;
 }
 
 const DEFAULTS: AgentConfig = {
@@ -87,6 +88,7 @@ const PROVIDER_ENV_VARS: Record<Provider, string | null> = {
   openrouter: 'OPENROUTER_API_KEY',
   ollama: null,
   omlx: null,
+  copilot: null, // token stored in local config, not env var
 };
 
 const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<Provider, string>> = {
@@ -94,6 +96,7 @@ const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<Provider, string>> = {
   openrouter: 'https://openrouter.ai/api/v1',
   ollama: 'http://localhost:11434/v1',
   omlx: 'http://127.0.0.1:8000/v1',
+  copilot: 'https://api.githubcopilot.com',
 };
 
 export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: string): AgentConfig {

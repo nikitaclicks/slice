@@ -9,6 +9,8 @@ import { renderToolCall, renderToolResult, formatTokens } from './renderer.js';
 import { detectBg, styledReadLine, borderedReadLine } from './terminal-bg.js';
 import { ensureRtk } from './modules/rtk-install.js';
 import { loadMcpTools, shutdownMcp } from './modules/mcp-client.js';
+import { runDeviceCodeFlow, saveTokenToConfig } from './modules/copilot-auth.js';
+import { startCopilotProxy, stopCopilotProxy } from './modules/copilot-proxy.js';
 import { selfHeal, getGitDiff } from './modules/self-heal.js';
 
 const RESET = '\x1b[0m';
@@ -66,10 +68,24 @@ async function main() {
   // Token-optimization bootstrap: install rtk binary, spawn context-cutter MCP.
   // Both are best-effort; failures only print warnings.
   await ensureRtk();
+
+  if (config.provider === 'copilot' && !config.apiKey) {
+    process.stdout.write(`${DIM}No Copilot token found — starting GitHub device auth…${RESET}\n`);
+    const token = await runDeviceCodeFlow();
+    saveTokenToConfig(token, profile || 'copilot');
+    config.apiKey = token;
+    process.stdout.write(`${GREEN}Authenticated! Token saved to agent.${profile || 'copilot'}.config.local.json${RESET}\n\n`);
+  }
+
+  if (config.copilotApi) {
+    process.stdout.write(`${DIM}Starting copilot-api proxy… (complete GitHub auth if prompted)${RESET}\n`);
+    await startCopilotProxy();
+    process.stdout.write(`${DIM}Proxy ready on :4141${RESET}\n\n`);
+  }
+
   const mcpTools = await loadMcpTools();
 
-  // Ensure MCP subprocess is killed on exit
-  const cleanup = () => { shutdownMcp().catch(() => {}); };
+  const cleanup = () => { shutdownMcp().catch(() => {}); stopCopilotProxy(); };
   process.on('exit', cleanup);
   process.on('SIGINT', () => { cleanup(); process.exit(0); });
   process.on('SIGTERM', () => { cleanup(); process.exit(0); });

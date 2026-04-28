@@ -1,6 +1,7 @@
 {
   "provider": "openai",
-  "baseURL": "https://models.inference.ai.azure.com",
+  "baseURL": "http://localhost:4141/v1",
   "model": "gpt-5-mini",
-  "reasoningEffort": "high"
+  "reasoningEffort": "high",
+  "copilotApi": true
 }
