@@ -153,7 +153,7 @@ export const commands: Command[] = [
   },
   {
     name: '/export',
-    description: 'Export conversation as Markdown',
+    description: 'Export full AI context as JSON (system prompt + messages)',
     execute: async (args, ctx) => {
       if (!ctx.messages.length) {
         console.log(`  ${DIM}No messages to export.${RESET}\n`);
@@ -161,11 +161,12 @@ export const commands: Command[] = [
       }
       const file =
         args[0] ||
-        `session-${new Date().toISOString().replace(/[:.]/g, '-')}.md`;
-      const md = ctx.messages
-        .map((m) => `## ${m.role === 'user' ? 'User' : 'Assistant'}\n\n${m.content}`)
-        .join('\n\n---\n\n');
-      writeFileSync(file, md, 'utf-8');
+        `session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      const context = [
+        { role: 'system', content: ctx.config.systemPrompt.replace('{cwd}', process.cwd()) },
+        ...ctx.messages,
+      ];
+      writeFileSync(file, JSON.stringify(context, null, 2), 'utf-8');
       console.log(`  ${GREEN}✓${RESET} ${DIM}Exported to ${file}${RESET}\n`);
     },
   },

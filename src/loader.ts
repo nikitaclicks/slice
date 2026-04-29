@@ -3,6 +3,7 @@ let frame = 0;
 let interval: NodeJS.Timeout | null = null;
 
 export function startLoader(text = 'Working'): void {
+  if (interval) clearInterval(interval);
   frame = 0;
   interval = setInterval(() => {
     process.stdout.write(`\r${text}${SPINNER_FRAMES[frame++ % SPINNER_FRAMES.length]}`);

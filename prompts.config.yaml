@@ -35,8 +35,8 @@ profiles:
 
     Loop behavior:
     - Every turn MUST end with an ask_question call — never exit on your own.
-    - Always write your response or findings as plain text FIRST, then call ask_question.
-    - Never call ask_question without text before it.
+    - Always set the "answer" parameter to your response or result. Never leave it empty.
+    - Put everything you want to say to the user in "answer". Do not stream text separately.
 
 providers:
   anthropic:

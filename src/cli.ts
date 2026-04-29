@@ -5,6 +5,7 @@ import { runAgentWithRetry, type AgentEvent, type ChatMessage } from './agent.js
 import { printBanner } from './banner.js';
 import { startLoader, stopLoader } from './loader.js';
 import { handleSlashCommand, commands, type CommandContext } from './commands.js';
+import { setQuestionReader, setAskAbortCallback, clearAskAbortCallback } from './tools/ask-question.js';
 import { renderToolCall, renderToolResult, formatTokens } from './renderer.js';
 import { detectBg, styledReadLine, borderedReadLine } from './terminal-bg.js';
 import { ensureRtk } from './modules/rtk-install.js';
@@ -35,7 +36,6 @@ function isContextTooLargeError(err: any): boolean {
   return msg.includes('too large') || msg.includes('context length') || msg.includes('max size') || msg.includes('context_length_exceeded');
 }
 
-// Catch unhandled rejections so they don't silently restart the loop
 process.on('unhandledRejection', (reason) => {
   process.stdout.write(`\n${YELLOW}[unhandled] ${String(reason)}${RESET}\n`);
 });
@@ -65,8 +65,6 @@ async function main() {
     console.log(`${line}\n`);
   }
 
-  // Token-optimization bootstrap: install rtk binary, spawn context-cutter MCP.
-  // Both are best-effort; failures only print warnings.
   await ensureRtk();
 
   if (config.provider === 'copilot' && !config.apiKey) {
@@ -114,6 +112,22 @@ async function main() {
         return [hits.length ? hits : cmdNames, line];
       },
     });
+    setQuestionReader((q) => new Promise((resolve) => {
+      rl!.question(`\x1b[33m[?] ${q}\x1b[0m\n> `, resolve);
+    }));
+  } else {
+    // Block/bordered: after rawInput exits, emitKeypressEvents leaves a keypress
+    // decoder on stdin. Use terminal:false so readline reads data events directly
+    // (OS cooked mode) without touching raw mode or managing its own prompt drawing.
+    // Write the prompt manually so it appears exactly once.
+    setQuestionReader((q) => new Promise((resolve) => {
+      const tempRl = createInterface({ input: process.stdin, terminal: false });
+      process.stdout.write(`\x1b[33m[?] ${q}\x1b[0m\n> `);
+      tempRl.once('line', (answer) => {
+        tempRl.close();
+        resolve(answer);
+      });
+    }));
   }
 
   // For slash commands that need rl.question (e.g. /model), we create a
@@ -146,9 +160,7 @@ async function main() {
     makeRl,
     messages,
     totalTokens,
-    resetSession: () => {
-      messages.length = 0;
-    },
+    resetSession: () => { messages.length = 0; },
   };
 
   const toolStart = new Map<string, number>();
@@ -156,6 +168,9 @@ async function main() {
   const handleEvent = (event: AgentEvent) => {
     if (event.type === 'tool_call') {
       toolStart.set(event.callId, Date.now());
+      if (event.name === 'ask_question' && event.args.answer) {
+        console.log(`\n${event.args.answer}\n`);
+      }
       console.log(renderToolCall(event.name, event.args));
     } else if (event.type === 'tool_result') {
       const ms = Date.now() - (toolStart.get(event.callId) ?? Date.now());
@@ -175,14 +190,12 @@ async function main() {
     if (!input) continue;
 
     // Write cwd status line after styled inputs
-    if (config.display.inputStyle !== 'plain') {
+    if (effectiveStyle !== 'plain') {
       const cwd = process.cwd().replace(process.env.HOME ?? '', '~');
       process.stdout.write(`\x1b[K  ${DIM}${cwd}${RESET}\n`);
     }
 
-    if (input === 'exit' || input === 'quit') {
-      process.exit(0);
-    }
+    if (input === 'exit' || input === 'quit') process.exit(0);
 
     if (input.startsWith('/')) {
       await handleSlashCommand(input, cmdCtx);
@@ -191,32 +204,75 @@ async function main() {
 
     console.log();
     startLoader();
-
     messages.push({ role: 'user', content: input });
+
+    // AbortController triggered only when the user escapes ask_question
+    // (empty Enter or /stop). Normal answers stay in the same streamText call.
+    const askAbort = new AbortController();
+    setAskAbortCallback(() => askAbort.abort());
 
     for (let attempt = 0; attempt <= 1; attempt++) {
       let responseText = '';
+      let flushedText = '';
+      let hadToolCall = false;
+
       const flushText = () => {
+        stopLoader();
         if (responseText) {
-          stopLoader();
           console.log(`\n${responseText}\n`);
+          flushedText += responseText;
           responseText = '';
         }
       };
+
       const eventHandler = (event: AgentEvent) => {
         if (event.type === 'text') {
           responseText += event.delta;
         } else {
-          if (event.type === 'tool_call') flushText();
+          // Stop spinner before printing any tool indicator so they don't interleave
+          if (event.type === 'tool_call') { flushText(); hadToolCall = true; }
+          else { stopLoader(); }
           handleEvent(event);
+          // Restart spinner after tool_result so it shows while model processes the answer
+          if (event.type === 'tool_result') startLoader();
+        }
+      };
+
+      // commitMessages is used for abort/error paths where we only have partial text.
+      // The normal success path uses res.responseMessages directly (includes tool calls).
+      const commitMessages = (text: string) => {
+        if (text) {
+          messages.push({ role: 'assistant', content: text });
+        } else if (hadToolCall) {
+          messages.push({ role: 'assistant', content: '...' });
+        } else if (messages[messages.length - 1]?.role === 'user') {
+          messages.pop();
         }
       };
 
       const agentInput: ChatMessage[] | string = messages.length > 1 ? [...messages] : input;
 
       try {
-        const res = await runAgentWithRetry(config, agentInput, { onEvent: eventHandler, extraTools: mcpTools });
+        const res = await runAgentWithRetry(config, agentInput, {
+          onEvent: eventHandler,
+          extraTools: mcpTools,
+          excludeTools: [],
+          signal: askAbort.signal,
+        });
+        clearAskAbortCallback();
         stopLoader();
+
+        // User escaped ask_question — commit whatever was produced (text + tool messages).
+        if (askAbort.signal.aborted) {
+          flushText();
+          const abortMessages = res?.responseMessages ?? [];
+          if (abortMessages.length) {
+            messages.push(...abortMessages);
+          } else {
+            commitMessages(flushedText + responseText);
+          }
+          break;
+        }
 
         if (responseText) {
           console.log(`\n${responseText}\n`);
@@ -229,18 +285,31 @@ async function main() {
         totalTokens.input += inT;
         totalTokens.output += outT;
 
-        if (responseText) {
-          messages.push({ role: 'assistant', content: responseText });
+        const fullText = flushedText + responseText;
+        const resMessages = res?.responseMessages ?? [];
+        if (resMessages.length) {
+          messages.push(...resMessages);
+        } else {
+          commitMessages(fullText);
         }
+
         break;
       } catch (err: any) {
+        clearAskAbortCallback();
         stopLoader();
+
+        if (askAbort.signal.aborted) {
+          flushText();
+          commitMessages(flushedText + responseText);
+          break;
+        }
+
         if (messages[messages.length - 1]?.role === 'user') messages.pop();
 
         if (attempt === 0 && isContextTooLargeError(err) && messages.length >= 2) {
           const trimTo = Math.max(2, Math.floor(messages.length / 2));
           messages.splice(0, messages.length - trimTo);
-          messages.push({ role: 'user', content: input });
+          if (input) messages.push({ role: 'user', content: input });
           process.stdout.write(`${YELLOW}Context too large — trimmed history, retrying…${RESET}\n\n`);
           startLoader();
           continue;

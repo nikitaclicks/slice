@@ -1,10 +1,11 @@
 import { streamText, generateText } from 'ai';
-import type { Tool, LanguageModelV1 } from 'ai';
+import type { Tool, LanguageModelV1, CoreMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import type { AgentConfig } from './config.js';
 import { tools, makeStrict } from './tools/index.js';
 
-export type ChatMessage = { role: 'user' | 'assistant' | 'system'; content: string };
+// CoreMessage covers user/assistant/tool/system — superset of the old ChatMessage.
+export type ChatMessage = CoreMessage;
 
 export type AgentEvent =
   | { type: 'text'; delta: string }
@@ -50,9 +51,13 @@ export async function runAgent(
     onEvent?: (event: AgentEvent) => void;
     signal?: AbortSignal;
     extraTools?: Record<string, Tool>;
+    excludeTools?: string[];
+    _testModel?: LanguageModelV1;
+    toolChoice?: 'auto' | 'required' | 'none' | { type: 'tool'; toolName: string };
+    maxStepsOverride?: number;
   },
 ) {
-  const model = createModel(config);
+  const model = options?._testModel ?? createModel(config);
 
   const messages: ChatMessage[] = typeof input === 'string'
     ? [{ role: 'user', content: input }]
@@ -61,7 +66,10 @@ export async function runAgent(
   const extraTools = Object.fromEntries(
     Object.entries(options?.extraTools ?? {}).map(([k, t]) => [k, makeStrict(t)])
   );
-  const allTools: Record<string, Tool> = { ...tools, ...extraTools };
+  const excluded = new Set(options?.excludeTools ?? []);
+  const allTools: Record<string, Tool> = Object.fromEntries(
+    Object.entries({ ...tools, ...extraTools }).filter(([k]) => !excluded.has(k))
+  );
 
   const signals: AbortSignal[] = [];
   if (options?.signal) signals.push(options.signal);
@@ -73,7 +81,8 @@ export async function runAgent(
     system: config.systemPrompt.replace('{cwd}', process.cwd()),
     messages,
     tools: allTools,
-    maxSteps: config.maxSteps,
+    maxSteps: options?.maxStepsOverride ?? config.maxSteps,
+    ...(options?.toolChoice && { toolChoice: options.toolChoice as any }),
     ...(signal && { abortSignal: signal }),
   });
 
@@ -81,6 +90,25 @@ export async function runAgent(
   let streamOutputTokens = 0;
 
   const toInt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+  // Track messages as they stream so we can return them even if the signal is aborted
+  // (awaiting result.response after abort throws/hangs, so we build this manually).
+  const streamMessages: ChatMessage[] = [];
+  let stepText = '';
+  const stepCalls: Array<{ type: 'tool-call'; toolCallId: string; toolName: string; args: unknown }> = [];
+
+  function flushStep() {
+    if (!stepText && !stepCalls.length) return;
+    const parts: any[] = [];
+    if (stepText) parts.push({ type: 'text', text: stepText });
+    parts.push(...stepCalls);
+    streamMessages.push({
+      role: 'assistant',
+      content: parts.length === 1 && parts[0].type === 'text' ? stepText : parts,
+    } as ChatMessage);
+    stepText = '';
+    stepCalls.length = 0;
+  }
 
   for await (const part of result.fullStream) {
     if (options?.signal?.aborted) break;
@@ -92,6 +120,18 @@ export async function runAgent(
     if (p.type === 'finish' && p.usage) {
       streamInputTokens += toInt(p.usage.promptTokens ?? p.usage.inputTokens);
       streamOutputTokens += toInt(p.usage.completionTokens ?? p.usage.outputTokens);
+    }
+
+    if (p.type === 'text-delta') {
+      stepText += p.textDelta;
+    } else if (p.type === 'tool-call') {
+      stepCalls.push({ type: 'tool-call', toolCallId: p.toolCallId, toolName: p.toolName, args: p.args });
+    } else if (p.type === 'tool-result') {
+      flushStep();
+      streamMessages.push({
+        role: 'tool',
+        content: [{ type: 'tool-result', toolCallId: p.toolCallId, toolName: p.toolName, result: p.result }],
+      } as unknown as ChatMessage);
     }
 
     if (!options?.onEvent) continue;
@@ -121,8 +161,21 @@ export async function runAgent(
     }
   }
 
+  flushStep();
+
+  // Return early if the signal was aborted (e.g. by ask_question capturing user input).
+  // Awaiting result.text/usage/response after abort would throw or hang.
+  if (options?.signal?.aborted) {
+    return {
+      text: '',
+      usage: { inputTokens: streamInputTokens, outputTokens: streamOutputTokens },
+      responseMessages: streamMessages,
+    };
+  }
+
   const text = await result.text;
   const usage = await result.usage;
+  const response = await result.response;
   const sdkInputTokens = toInt((usage as any)?.promptTokens ?? (usage as any)?.inputTokens);
   const sdkOutputTokens = toInt((usage as any)?.completionTokens ?? (usage as any)?.outputTokens);
   return {
@@ -131,6 +184,7 @@ export async function runAgent(
       inputTokens: sdkInputTokens || streamInputTokens,
       outputTokens: sdkOutputTokens || streamOutputTokens,
     },
+    responseMessages: response.messages as ChatMessage[],
   };
 }
 
@@ -142,6 +196,9 @@ export async function runAgentWithRetry(
     signal?: AbortSignal;
     maxRetries?: number;
     extraTools?: Record<string, Tool>;
+    excludeTools?: string[];
+    toolChoice?: 'auto' | 'required' | 'none' | { type: 'tool'; toolName: string };
+    maxStepsOverride?: number;
   },
 ) {
   for (let attempt = 0, max = options?.maxRetries ?? 3; attempt <= max; attempt++) {
