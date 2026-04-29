@@ -166,10 +166,32 @@ export async function runAgent(
   // Return early if the signal was aborted (e.g. by ask_question capturing user input).
   // Awaiting result.text/usage/response after abort would throw or hang.
   if (options?.signal?.aborted) {
+    // The loop may have broken before the tool-result event arrived for the last tool-call.
+    // Inject synthetic results for any tool-calls that have no matching tool-result, so the
+    // conversation history stays valid for the next API request.
+    const resultIds = new Set<string>(
+      streamMessages
+        .filter((m: any) => m.role === 'tool')
+        .flatMap((m: any) => (Array.isArray(m.content) ? m.content : []).map((c: any) => c.toolCallId))
+    );
+    const patched: ChatMessage[] = [];
+    for (const m of streamMessages) {
+      patched.push(m);
+      if ((m as any).role === 'assistant' && Array.isArray((m as any).content)) {
+        for (const c of (m as any).content) {
+          if (c?.type === 'tool-call' && !resultIds.has(c.toolCallId)) {
+            patched.push({
+              role: 'tool',
+              content: [{ type: 'tool-result', toolCallId: c.toolCallId, toolName: c.toolName, result: 'User ended the session.' }],
+            } as unknown as ChatMessage);
+          }
+        }
+      }
+    }
     return {
       text: '',
       usage: { inputTokens: streamInputTokens, outputTokens: streamOutputTokens },
-      responseMessages: streamMessages,
+      responseMessages: patched,
     };
   }
 
