@@ -4,8 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "vitest run",
-    "start": "tsx src/cli.ts",
-    "dev": "tsx src/cli.ts"
+    "start": "tsx src/ui/cli.ts",
+    "dev": "tsx src/ui/cli.ts"
   },
   "keywords": [],
   "author": "",

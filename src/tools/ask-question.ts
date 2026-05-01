@@ -1,6 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { stopLoader, startLoader } from '../loader.js';
+import { stopLoader, startLoader } from '../ui/loader.js';
 
 // Injected by cli.ts in plain mode so ask_question uses readline instead of
 // raw stdin — prevents the readline interface from double-buffering the answer

@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../agent.js';
+import type { ChatMessage } from '../core/agent.js';
 
 export const DESTRUCTIVE_TOOLS = ['file_write', 'file_edit', 'shell'];
 

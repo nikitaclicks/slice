@@ -2,7 +2,7 @@ import { streamText, generateText } from 'ai';
 import type { Tool, LanguageModelV1, CoreMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import type { AgentConfig } from './config.js';
-import { tools, makeStrict } from './tools/index.js';
+import { tools, makeStrict } from '../tools/index.js';
 
 // CoreMessage covers user/assistant/tool/system — superset of the old ChatMessage.
 export type ChatMessage = CoreMessage;

@@ -1,18 +1,18 @@
 import 'dotenv/config';
 import { createInterface, type Interface } from 'readline';
-import { loadConfig } from './config.js';
-import { runAgentWithRetry, type AgentEvent, type ChatMessage } from './agent.js';
+import { loadConfig } from '../core/config.js';
+import { runAgentWithRetry, type AgentEvent, type ChatMessage } from '../core/agent.js';
 import { printBanner } from './banner.js';
 import { startLoader, stopLoader } from './loader.js';
 import { handleSlashCommand, commands, type CommandContext } from './commands.js';
-import { setQuestionReader, setAskAbortCallback, clearAskAbortCallback } from './tools/ask-question.js';
+import { setQuestionReader, setAskAbortCallback, clearAskAbortCallback } from '../tools/ask-question.js';
 import { renderToolCall, renderToolResult, formatTokens } from './renderer.js';
 import { detectBg, styledReadLine, borderedReadLine } from './terminal-bg.js';
-import { ensureRtk } from './modules/rtk-install.js';
-import { loadMcpTools, shutdownMcp } from './modules/mcp-client.js';
-import { runDeviceCodeFlow, saveTokenToConfig } from './modules/copilot-auth.js';
-import { startCopilotProxy, stopCopilotProxy } from './modules/copilot-proxy.js';
-import { selfHeal, getGitDiff } from './modules/self-heal.js';
+import { ensureRtk } from '../infra/rtk-install.js';
+import { loadMcpTools, shutdownMcp } from '../infra/mcp-client.js';
+import { runDeviceCodeFlow, saveTokenToConfig } from '../infra/copilot-auth.js';
+import { startCopilotProxy, stopCopilotProxy } from '../infra/copilot-proxy.js';
+import { selfHeal, getGitDiff } from '../infra/self-heal.js';
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';

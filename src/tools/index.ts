@@ -9,7 +9,7 @@ import { grepTool } from './grep.js';
 import { listDirTool } from './list-dir.js';
 import { shellTool } from './shell.js';
 import { askQuestionTool } from './ask-question.js';
-import { toToon } from '../modules/toon-wrap.js';
+import { toToon } from '../infra/toon-wrap.js';
 
 // Some providers (e.g. GitHub Models) enforce strict JSON schema where every
 // property must appear in `required`. The Vercel AI SDK converts Zod schemas

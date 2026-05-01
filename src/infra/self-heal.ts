@@ -2,12 +2,12 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import type { Tool } from 'ai';
-import type { AgentConfig } from '../config.js';
-import type { AgentEvent } from '../agent.js';
-import { runAgentWithRetry } from '../agent.js';
+import type { AgentConfig } from '../core/config.js';
+import type { AgentEvent } from '../core/agent.js';
+import { runAgentWithRetry } from '../core/agent.js';
 
 const __filename = fileURLToPath(import.meta.url);
-// src/modules/self-heal.ts -> src/modules -> src -> slice root
+// src/infra/self-heal.ts -> src/infra -> src -> slice root
 const SLICE_ROOT = dirname(dirname(dirname(__filename)));
 const SRC_DIR = join(SLICE_ROOT, 'src');
 

@@ -1,4 +1,4 @@
-import type { AgentEvent } from './agent.js';
+import type { AgentEvent } from '../core/agent.js';
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';

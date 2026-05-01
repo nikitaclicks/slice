@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../agent.js';
+import type { ChatMessage } from './agent.js';
 
 export interface CompactionOptions {
   maxMessages: number;

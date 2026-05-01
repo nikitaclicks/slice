@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { LanguageModelV1, LanguageModelV1StreamPart } from '@ai-sdk/provider';
-import { setQuestionReader } from './tools/ask-question.js';
+import { setQuestionReader } from '../tools/ask-question.js';
 import { runAgent } from './agent.js';
 import type { AgentConfig } from './config.js';
 

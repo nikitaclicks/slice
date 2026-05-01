@@ -1,9 +1,9 @@
 import { writeFileSync } from 'fs';
 import { generateText } from 'ai';
 import type { Interface } from 'readline';
-import type { AgentConfig } from './config.js';
-import type { ChatMessage } from './agent.js';
-import { createModel } from './agent.js';
+import type { AgentConfig } from '../core/config.js';
+import type { ChatMessage } from '../core/agent.js';
+import { createModel } from '../core/agent.js';
 
 const DIM = '\x1b[2m';
 const RESET = '\x1b[0m';

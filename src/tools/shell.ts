@@ -2,8 +2,8 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { rewriteWithRtk } from '../modules/rtk-rewrite.js';
-import { toToon } from '../modules/toon-wrap.js';
+import { rewriteWithRtk } from '../infra/rtk-rewrite.js';
+import { toToon } from '../infra/toon-wrap.js';
 
 const execAsync = promisify(exec);
 
