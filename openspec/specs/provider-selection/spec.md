@@ -1,4 +1,7 @@
-## ADDED Requirements
+## Purpose
+Support multiple AI providers (OpenAI, Anthropic, Ollama, OpenRouter, Azure) configurable via a single `provider` field in `agent.config.json`, with per-provider API key resolution and optional base URL override.
+
+## Requirements
 
 ### Requirement: Provider is configurable via config field
 The system SHALL support a `provider` field in `AgentConfig` and `agent.config.json` that selects the active AI provider. Supported values SHALL be: `openai`, `anthropic`, `ollama`, `openrouter`, `azure`. When no `provider` is specified, the system SHALL default to `openrouter` for backwards compatibility.

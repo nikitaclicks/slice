@@ -1,3 +1,8 @@
+## Purpose
+Reorganize `src/` into three named layer directories (`core/`, `ui/`, `infra/`) alongside the existing `tools/` directory to enforce clear separation of business logic, user-facing code, and external integrations.
+
+## Requirements
+
 ### Requirement: Source directory has three named layer directories
 The `src/` directory SHALL contain exactly three layer subdirectories — `core/`, `ui/`, and `infra/` — in addition to the existing `tools/` directory. No top-level `.ts` files SHALL exist in `src/` outside of these four directories (except `tsconfig`-generated outputs).
 

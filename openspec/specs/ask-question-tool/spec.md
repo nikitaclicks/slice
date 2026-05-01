@@ -1,4 +1,7 @@
-## ADDED Requirements
+## Purpose
+Allow the model to pause mid-turn and ask the user a clarifying question, then continue once an answer is received.
+
+## Requirements
 
 ### Requirement: Model can ask user a question mid-turn
 The system SHALL provide an `ask_question` tool that the model can invoke at any point during a task to ask the user a question and receive their answer before continuing.
