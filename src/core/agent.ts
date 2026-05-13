@@ -14,27 +14,7 @@ export type AgentEvent =
   | { type: 'reasoning'; delta: string };
 
 export function createModel(config: AgentConfig): LanguageModelV1 {
-  const { apiKey, baseURL, headers, reasoningEffort, model, provider } = config;
-
-  if (provider === 'copilot') {
-    const token = apiKey;
-    const copilotFetch: typeof globalThis.fetch = (input, init) => {
-      const h = new Headers(init?.headers as HeadersInit | undefined);
-      h.delete('authorization');
-      h.delete('x-api-key');
-      h.set('Authorization', `Bearer ${token}`);
-      h.set('User-Agent', 'slice/1.0.0');
-      h.set('Openai-Intent', 'conversation-edits');
-      h.set('x-initiator', 'agent');
-      return globalThis.fetch(input, { ...init, headers: h });
-    };
-    const client = createOpenAI({
-      apiKey: 'unused',
-      baseURL: baseURL || 'https://api.githubcopilot.com',
-      fetch: copilotFetch,
-    });
-    return client(model, { ...(reasoningEffort && { reasoningEffort }) });
-  }
+  const { apiKey, baseURL, headers, reasoningEffort, model } = config;
 
   const client = createOpenAI({
     apiKey: apiKey || 'no-key',

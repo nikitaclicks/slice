@@ -1,7 +1,0 @@
-{
-  "provider": "openai",
-  "baseURL": "http://localhost:4141/v1",
-  "model": "gpt-5-mini",
-  "reasoningEffort": "high",
-  "copilotApi": true
-}

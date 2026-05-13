@@ -8,3 +8,7 @@ session-*.json
 *.log
 agent.config.local.json
 agent.*.config.local.json
+.pi/
+.claude/
+.opencode/
+.github/

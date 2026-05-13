@@ -11,7 +11,7 @@ import { shellTool } from './shell.js';
 import { askQuestionTool } from './ask-question.js';
 import { toToon } from '../infra/toon-wrap.js';
 
-// Some providers (e.g. GitHub Models) enforce strict JSON schema where every
+// Some providers enforce strict JSON schema where every
 // property must appear in `required`. The Vercel AI SDK converts Zod schemas
 // at call time, so we convert + patch here and replace parameters with a
 // pre-built jsonSchema() that the SDK uses as-is.
@@ -34,7 +34,7 @@ function cleanSchema(node: any, isContainer = false): any {
       out[k] = container;
       continue;
     }
-    // Collapse type:[X,"null"] → type:X (drop null, GitHub Models rejects array types)
+    // Collapse type:[X,"null"] → type:X (drop null, strict validators reject array types)
     if (k === 'type' && Array.isArray(v)) {
       const base = (v as string[]).filter((t) => t !== 'null');
       if (base.length === 1) { out.type = base[0]; continue; }
@@ -49,12 +49,12 @@ function cleanSchema(node: any, isContainer = false): any {
       delete out.anyOf;
     }
   }
-  // GitHub Models requires every schema node to have a 'type' key.
+  // Some strict validators require every schema node to have a 'type' key.
   // Fall back to 'string' for untyped leaf schemas (e.g. z.any() → {}).
   if (!isContainer && !out.type && !out.anyOf && !out.oneOf && !out.allOf && !out.$ref && !out.properties && !out.enum) {
     out.type = 'string';
   }
-  // GitHub Models strict mode requires every object schema to declare properties/required.
+  // Some strict validators require every object schema to declare properties/required.
   // Object schemas without properties get an empty declaration so they are schema-valid.
   if (out.type === 'object' && !out.properties) {
     out.properties = {};

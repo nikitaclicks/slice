@@ -33,11 +33,11 @@ The `src/ui/` directory SHALL contain `cli.ts`, `commands.ts`, `banner.ts`, `loa
 - **THEN** it contains cli.ts, commands.ts, banner.ts, loader.ts, renderer.ts, and terminal-bg.ts
 
 ### Requirement: infra/ layer contains external integrations
-The `src/infra/` directory SHALL contain `approval.ts`, `copilot-auth.ts`, `copilot-proxy.ts`, `mcp-client.ts`, `rtk-install.ts`, `rtk-rewrite.ts`, `self-heal.ts`, and `toon-wrap.ts`.
+The `src/infra/` directory SHALL contain `approval.ts`, `mcp-client.ts`, `rtk-install.ts`, `rtk-rewrite.ts`, `self-heal.ts`, and `toon-wrap.ts`.
 
 #### Scenario: infra/ contains all former modules/ files
 - **WHEN** listing `src/infra/`
-- **THEN** it contains all eight files previously located in `src/modules/`
+- **THEN** it contains the expected external integration files for the current architecture
 
 ### Requirement: TypeScript compilation succeeds after reorganization
 After all files are moved and import paths updated, the project SHALL compile without errors.

@@ -2,7 +2,9 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { load as parseYaml } from 'js-yaml';
 
-export type Provider = 'openai' | 'anthropic' | 'ollama' | 'openrouter' | 'omlx' | 'copilot';
+const SUPPORTED_PROVIDERS = ['openai', 'anthropic', 'ollama', 'openrouter', 'omlx'] as const;
+
+export type Provider = typeof SUPPORTED_PROVIDERS[number];
 
 interface PromptsConfig {
   default?: string;
@@ -53,7 +55,6 @@ export interface AgentConfig {
   showBanner: boolean;
   display: DisplayConfig;
   slashCommands: boolean;
-  copilotApi?: boolean;
 }
 
 const DEFAULTS: AgentConfig = {
@@ -88,7 +89,6 @@ const PROVIDER_ENV_VARS: Record<Provider, string | null> = {
   openrouter: 'OPENROUTER_API_KEY',
   ollama: null,
   omlx: null,
-  copilot: null, // token stored in local config, not env var
 };
 
 const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<Provider, string>> = {
@@ -96,8 +96,14 @@ const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<Provider, string>> = {
   openrouter: 'https://openrouter.ai/api/v1',
   ollama: 'http://localhost:11434/v1',
   omlx: 'http://127.0.0.1:8000/v1',
-  copilot: 'https://api.githubcopilot.com',
 };
+
+function assertProvider(provider: string): asserts provider is Provider {
+  if ((SUPPORTED_PROVIDERS as readonly string[]).includes(provider)) return;
+  throw new Error(
+    `Unsupported provider "${provider}". Supported providers: ${SUPPORTED_PROVIDERS.join(', ')}.`,
+  );
+}
 
 export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: string): AgentConfig {
   let config = { ...DEFAULTS };
@@ -126,6 +132,7 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
   }
 
   const provider = config.provider ?? 'openrouter';
+  assertProvider(provider);
 
   if (!fileHasSystemPrompt) {
     const fromFile = resolvePromptFromFile(provider, config.model, profile);
@@ -151,13 +158,13 @@ export function loadConfig(overrides: Partial<AgentConfig> = {}, profile?: strin
   config = { ...config, ...overrides, display: config.display };
 
   if (!config.baseURL) {
-    const defaultBase = PROVIDER_DEFAULT_BASE_URLS[provider as Provider];
+    const defaultBase = PROVIDER_DEFAULT_BASE_URLS[provider];
     if (defaultBase) config.baseURL = defaultBase;
   }
 
-  const requiresApiKey = PROVIDER_ENV_VARS[provider as Provider] !== null;
+  const requiresApiKey = PROVIDER_ENV_VARS[provider] !== null;
   if (requiresApiKey && !config.apiKey) {
-    const varName = PROVIDER_ENV_VARS[provider as Provider] ?? 'API key';
+    const varName = PROVIDER_ENV_VARS[provider] ?? 'API key';
     throw new Error(`${varName} is required for provider "${provider}".`);
   }
 

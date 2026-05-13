@@ -1,6 +1,6 @@
 # Slice
 
-A token-efficient, terminal-based AI coding assistant powered by the [Vercel AI SDK](https://sdk.vercel.ai). Run it against OpenRouter, OpenAI, Anthropic, GitHub Copilot, Ollama, or any OpenAI-compatible endpoint.
+A token-efficient, terminal-based AI coding assistant powered by the [Vercel AI SDK](https://sdk.vercel.ai). Run it against OpenRouter, OpenAI, Anthropic, Ollama, OMLX, or any OpenAI-compatible endpoint.
 
 Slice keeps context small, reads only what it needs, and responds tersely — designed for developers who want a fast assistant that stays out of the way.
 
@@ -13,7 +13,7 @@ Slice keeps context small, reads only what it needs, and responds tersely — de
 - **File tools** — `file_read`, `file_write`, `file_edit`, `glob`, `grep`, `list_dir`, `shell`
 - **Slash commands** — `/model`, `/new`, `/help`, `/compact`, `/session`, `/export`
 - **Context compaction** — LLM-powered summarization of long conversations via `/compact`
-- **Provider-agnostic** — OpenRouter (default), OpenAI, Anthropic, Ollama, or any OpenAI-compatible endpoint
+- **Provider-agnostic** — OpenRouter (default), OpenAI, Anthropic, Ollama, OMLX, or any OpenAI-compatible endpoint
 
 ## Requirements
 
@@ -129,27 +129,6 @@ Set `provider`, `baseURL`, and `model` in `agent.config.json` (committed). Put `
 { "apiKey": "sk-ant-..." }
 ```
 
-### GitHub Copilot (GitHub Models)
-
-`agent.copilot.config.json`:
-```json
-{
-  "provider": "openai",
-  "baseURL": "https://models.inference.ai.azure.com",
-  "model": "gpt-4o"
-}
-```
-`agent.copilot.config.local.json`:
-```json
-{ "apiKey": "ghp_..." }
-```
-
-```bash
-npm start copilot
-```
-
-Get a token at **github.com → Settings → Developer settings → Personal access tokens**. Free tier includes generous model access. Model IDs: `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `o4-mini`.
-
 ### Any OpenAI-compatible endpoint (local or proxy)
 
 ```json
@@ -174,7 +153,7 @@ Get a token at **github.com → Settings → Developer settings → Personal acc
 
 System prompts are configured in `prompts.config.yaml` (committed to source control — no secrets here). Prompts are resolved in order from most to least specific:
 
-1. **Profile** — matched by the profile name used to start Slice (e.g. `npm start copilot`)
+1. **Profile** — matched by the profile name used to start Slice (e.g. `npm start work`)
 2. **Provider + model** — matched by both provider and exact model ID
 3. **Provider default** — matched by provider only
 4. **Global default** — fallback for everything
@@ -186,9 +165,9 @@ default: |
   Current working directory: {cwd}
 
 profiles:
-  copilot: |
-    You are Slice in copilot mode.
-    Always use the ask_question tool when waiting for input...
+  work: |
+    You are Slice for the work profile.
+    Prefer concise answers and bash-first workflows...
 
 providers:
   anthropic:
